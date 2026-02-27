@@ -20,6 +20,14 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+# Strip ANSI/VT100 escape sequences (e.g. \x1b[32m, \x1b[K) from telnet output
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI/VT100 escape sequences from *text*."""
+    return _ANSI_ESCAPE_RE.sub("", text)
+
 
 @dataclass(frozen=True)
 class ConsolePrompt:
@@ -111,6 +119,8 @@ def parse_prompt(raw: str) -> ConsolePrompt:
     if not raw:
         return ConsolePrompt(raw_response=raw)
 
+    raw = _strip_ansi(raw)
+
     # Try pattern 1: bracket-delimited [content]>
     matches = list(_BRACKET_PROMPT_RE.finditer(raw))
     if matches:
@@ -186,21 +196,29 @@ class ListOutput:
 
 # Patterns for extracting entries from list output lines:
 #
-# MA2 list output format is not yet validated against a live console.
-# Hypothesized row formats (will be refined empirically):
+# Live-console validated formats (grandMA2 v3.9 telnet):
 #
-#   1.  Dot notation:     "Group.1   Front Wash"
-#   2.  ID + Name:        "1   Front Wash"         (when inside a typed pool)
-#   3.  Type ID Name:     "Group  1  Front Wash"   (tabular columns)
-#   4.  Quoted name:      '1  "Front Wash"'
+#   1.  Tabular (pool listing):  "Group   1 1    ALL LASERS"
+#                                "Sequ   1 1    ALL WHITE   On  ..."
+#       Columns: TypeAbbr  pool_slot  No.  Name  [extra columns...]
+#
+#   2.  Dot notation:  "Group.1  Front Wash"   (legacy / manual testing)
+#   3.  Bare ID:       "1  Front Wash"         (when inside a typed pool)
+#   4.  Quoted name:   '1  "Front Wash"'
 
-# Pattern: Type.ID with optional name (e.g. "Group.1  Front Wash")
+# Pattern 1: tabular pool listing  "Group   1 1    Name  [extra...]"
+# Captures: (type_abbr, pool_slot[ignored], no, rest_of_line)
+_LIST_TABULAR_RE = re.compile(
+    r"^\s*([A-Za-z]\w*)\s+(\d+)\s+(\d+)\s{2,}(.+?)\s*$"
+)
+
+# Pattern 2: Type.ID with optional name (e.g. "Group.1  Front Wash")
 _LIST_DOT_RE = re.compile(
     r"^\s*([A-Za-z]\w*)\.(\d+(?:\.\d+)?)"
     r"(?:\s+(.+?))?\s*$"
 )
 
-# Pattern: bare numeric ID with optional name (e.g. "1  Front Wash")
+# Pattern 3: bare numeric ID with optional name (e.g. "1  Front Wash")
 _LIST_ID_RE = re.compile(
     r"^\s*(\d+(?:\.\d+)?)"
     r"(?:\s+(.+?))?\s*$"
@@ -225,6 +243,7 @@ def parse_list_output(raw: str) -> ListOutput:
     if not raw or not raw.strip():
         return ListOutput(raw_response=raw, entries=())
 
+    raw = _strip_ansi(raw)
     lines = raw.strip().splitlines()
     entries: list[ListEntry] = []
     prompt: Optional[ConsolePrompt] = None
@@ -237,6 +256,26 @@ def parse_list_output(raw: str) -> ListOutput:
         # Skip lines that look like a prompt (don't treat as data)
         if _BRACKET_PROMPT_RE.search(stripped):
             prompt = parse_prompt(stripped)
+            continue
+
+        # Skip lines that are clearly prompts via angle-bracket pattern
+        if _ANGLE_PROMPT_RE.search(stripped):
+            prompt = parse_prompt(stripped)
+            continue
+
+        # Try tabular pool listing: "Group   1 1    Name  [extra...]"
+        m = _LIST_TABULAR_RE.match(stripped)
+        if m:
+            rest = m.group(4)
+            # Name is the first field; extra columns follow 2+ spaces
+            name_part = re.split(r"\s{2,}", rest, maxsplit=1)[0].strip()
+            name = name_part if name_part else None
+            entries.append(ListEntry(
+                object_type=m.group(1),
+                object_id=m.group(3),  # use No. (external user-facing ID)
+                name=name,
+                raw_line=stripped,
+            ))
             continue
 
         # Try dot notation: Group.1  Front Wash
