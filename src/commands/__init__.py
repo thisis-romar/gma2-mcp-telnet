@@ -147,6 +147,8 @@ from .functions import (
     set_var,
     add_user_var,
     add_var,
+    # Navigation Function Keywords
+    changedest,
     # Other Function Keywords
     call_preset,
     clear,
@@ -311,6 +313,8 @@ __all__ = [
     "set_var",
     "add_user_var",
     "add_var",
+    # Navigation Function Keywords
+    "changedest",
     # Backward Compatibility Aliases
     "select_group",
     "call_preset",

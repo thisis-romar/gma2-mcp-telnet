@@ -156,6 +156,11 @@ from .variables import (
     add_var,
 )
 
+# Navigation Function Keywords (ChangeDest / cd)
+from .navigation import (
+    changedest,
+)
+
 # Backward Compatibility Aliases
 # select_group -> group (from objects.py)
 # call_preset -> preset (from objects.py)
@@ -275,6 +280,8 @@ __all__ = [
     "set_var",
     "add_user_var",
     "add_var",
+    # Navigation Function Keywords
+    "changedest",
     # Backward Compatibility Aliases
     "select_group",
     "call_preset",

@@ -24,6 +24,7 @@ from src.commands import (
     pause_sequence,
     goto_cue,
 )
+from src.navigation import navigate, get_current_location
 
 # Load environment variables
 load_dotenv()
@@ -56,6 +57,13 @@ mcp = FastMCP(
 
     3. send_raw_command - Send raw MA commands
        Example: Send "blackout" or "go+ executor 1.1"
+
+    4. navigate_console - Navigate the console's object tree (ChangeDest/cd)
+       Example: Navigate to "Group 1", go up with "..", return to root with "/"
+       Returns raw telnet response + parsed prompt state for exploration.
+
+    5. get_console_location - Query the current console destination
+       Returns raw telnet response + parsed prompt state without navigating.
     """,
 )
 
@@ -230,6 +238,96 @@ async def send_raw_command(command: str) -> str:
     client = await get_client()
     await client.send_command(command)
     return f"Sent command: {command}"
+
+
+@mcp.tool()
+async def navigate_console(
+    destination: str,
+    object_id: int | None = None,
+) -> str:
+    """
+    Navigate the grandMA2 console's object tree using ChangeDest (cd).
+
+    Sends a cd command and captures the raw telnet response, attempting
+    to parse the resulting console prompt to determine the current
+    location in the object tree.
+
+    EXPLORATORY: The exact MA2 telnet prompt format is being validated.
+    The raw_response field always contains the unmodified telnet output
+    for manual inspection, regardless of whether parsing succeeded.
+
+    Args:
+        destination: Navigation target. Supported formats:
+            - "/" to go to root
+            - ".." to go up one level
+            - A number (e.g., "5") to navigate by index
+            - An object type (e.g., "Group") when object_id is provided
+            - A quoted name (e.g., '"MySequence"') to navigate by name
+        object_id: Object ID (required when destination is an object type
+                   like "Group", "Sequence", etc.)
+
+    Returns:
+        str: JSON with command_sent, raw_response, parsed prompt details,
+             and success indicator.
+
+    Examples:
+        - Navigate to root: destination="/"
+        - Go up one level: destination=".."
+        - Navigate to Group 1: destination="Group", object_id=1
+        - Navigate by index: destination="5"
+    """
+    import json
+
+    client = await get_client()
+    result = await navigate(client, destination, object_id)
+
+    return json.dumps(
+        {
+            "command_sent": result.command_sent,
+            "raw_response": result.raw_response,
+            "success": result.success,
+            "parsed_prompt": {
+                "prompt_line": result.parsed_prompt.prompt_line,
+                "location": result.parsed_prompt.location,
+                "object_type": result.parsed_prompt.object_type,
+                "object_id": result.parsed_prompt.object_id,
+            },
+        },
+        indent=2,
+    )
+
+
+@mcp.tool()
+async def get_console_location() -> str:
+    """
+    Query the current grandMA2 console destination without navigating.
+
+    Sends an empty command to prompt the console to re-display its
+    prompt, then parses the response to determine the current location.
+
+    Returns:
+        str: JSON with raw_response, parsed prompt details,
+             and success indicator.
+    """
+    import json
+
+    client = await get_client()
+    result = await get_current_location(client)
+
+    return json.dumps(
+        {
+            "command_sent": result.command_sent,
+            "raw_response": result.raw_response,
+            "success": result.success,
+            "parsed_prompt": {
+                "prompt_line": result.parsed_prompt.prompt_line,
+                "location": result.parsed_prompt.location,
+                "object_type": result.parsed_prompt.object_type,
+                "object_id": result.parsed_prompt.object_id,
+            },
+        },
+        indent=2,
+    )
 
 
 # ============================================================
