@@ -200,16 +200,30 @@ class ListOutput:
 #
 #   1.  Tabular (pool listing):  "Group   1 1    ALL LASERS"
 #                                "Sequ   1 1    ALL WHITE   On  ..."
-#       Columns: TypeAbbr  pool_slot  No.  Name  [extra columns...]
+#                                "History  1 3.7.0.5    No    Mar 16 2022  newshow"
+#       Columns: TypeAbbr  pool_slot  No.(or version)  Name  [extra columns...]
+#
+#   1b. Root-level listing:      "Showfile              1  Date=Feb 25 2026 Info= (37)"
+#                                "Settings              3  (6)"
+#                                "EditSetup            11"
+#       Columns: Name  ID  [key=value properties]
 #
 #   2.  Dot notation:  "Group.1  Front Wash"   (legacy / manual testing)
 #   3.  Bare ID:       "1  Front Wash"         (when inside a typed pool)
 #   4.  Quoted name:   '1  "Front Wash"'
 
 # Pattern 1: tabular pool listing  "Group   1 1    Name  [extra...]"
-# Captures: (type_abbr, pool_slot[ignored], no, rest_of_line)
+# Also handles version-style third field: "History  1 3.7.0.5    No ..."
+# Captures: (type_abbr, pool_slot, no_or_version, rest_of_line)
 _LIST_TABULAR_RE = re.compile(
-    r"^\s*([A-Za-z]\w*)\s+(\d+)\s+(\d+)\s{2,}(.+?)\s*$"
+    r"^\s*([A-Za-z]\w*)\s+(\d+)\s+(\d+(?:\.\d+)*)\s{2,}(.+?)\s*$"
+)
+
+# Pattern 1b: root-level listing  "Showfile  1  Date=..." or "Settings  3  (6)"
+# Two columns: Name  ID, optionally followed by 2+ spaces then properties.
+# Must NOT match tabular lines (those have two consecutive numbers before 2+ spaces).
+_LIST_ROOT_RE = re.compile(
+    r"^\s*([A-Za-z]\w*)\s+(\d+)(?:\s{2,}(.+?))?\s*$"
 )
 
 # Pattern 2: Type.ID with optional name (e.g. "Group.1  Front Wash")
@@ -253,6 +267,10 @@ def parse_list_output(raw: str) -> ListOutput:
         if not stripped:
             continue
 
+        # Skip MA2 feedback prefixes and error lines
+        if stripped.startswith(("Executing :", "Error :", "Error #", "WARNING,")):
+            continue
+
         # Skip lines that look like a prompt (don't treat as data)
         if _BRACKET_PROMPT_RE.search(stripped):
             prompt = parse_prompt(stripped)
@@ -272,7 +290,20 @@ def parse_list_output(raw: str) -> ListOutput:
             name = name_part if name_part else None
             entries.append(ListEntry(
                 object_type=m.group(1),
-                object_id=m.group(3),  # use No. (external user-facing ID)
+                object_id=m.group(2),  # pool slot (= cd index)
+                name=name,
+                raw_line=stripped,
+            ))
+            continue
+
+        # Try root-level listing: "Showfile  1  Date=..." or "Settings  3  (6)"
+        m = _LIST_ROOT_RE.match(stripped)
+        if m:
+            name = m.group(1)          # the type name IS the display name at root
+            obj_id = m.group(2)        # the cd index
+            entries.append(ListEntry(
+                object_type=m.group(1),
+                object_id=obj_id,
                 name=name,
                 raw_line=stripped,
             ))
