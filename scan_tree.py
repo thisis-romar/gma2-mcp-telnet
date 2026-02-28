@@ -221,17 +221,113 @@ def _serialize_entries(entries) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Connection health & reconnect
+# ---------------------------------------------------------------------------
+
+MAX_RETRIES = 3          # reconnect attempts per failed command
+HEALTH_CHECK_EVERY = 50  # check connection health every N nodes
+
+
+async def _is_alive(client: GMA2TelnetClient) -> bool:
+    """Quick health check: send empty line, expect *some* response."""
+    try:
+        resp = await client.send_command_with_response("", timeout=2.0, delay=0.1)
+        return resp is not None and len(resp) > 0
+    except Exception:
+        return False
+
+
+async def _reconnect(client: GMA2TelnetClient, cfg: ScanConfig) -> None:
+    """Disconnect and re-establish the telnet session."""
+    print("  [RECONNECT] Connection lost — reconnecting...")
+    try:
+        await client.disconnect()
+    except Exception:
+        pass
+    await asyncio.sleep(1)
+    await client.connect()
+    await client.login()
+    await asyncio.sleep(0.5)
+    print("  [RECONNECT] Reconnected and logged in.")
+
+
+async def _safe_navigate(
+    client: GMA2TelnetClient,
+    destination: str,
+    cfg: ScanConfig,
+    abs_path: Optional[list[int]] = None,
+):
+    """Navigate with automatic reconnect on failure.
+
+    If the command returns an empty response or raises an exception,
+    reconnects and re-navigates to abs_path before retrying.
+    """
+    for attempt in range(MAX_RETRIES):
+        try:
+            result = await navigate(
+                client, destination, timeout=cfg.timeout, delay=cfg.delay
+            )
+            # Detect dead connection: empty raw response
+            if result.raw_response is not None and len(result.raw_response) > 0:
+                return result
+            if attempt < MAX_RETRIES - 1:
+                print(f"  [RECONNECT] Empty response on cd {destination} (attempt {attempt+1})")
+                await _reconnect(client, cfg)
+                if abs_path is not None:
+                    await _navigate_to_path_raw(client, abs_path, cfg)
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1:
+                print(f"  [RECONNECT] Error on cd {destination}: {e} (attempt {attempt+1})")
+                await _reconnect(client, cfg)
+                if abs_path is not None:
+                    await _navigate_to_path_raw(client, abs_path, cfg)
+            else:
+                raise
+    # Return last result even if empty
+    return await navigate(client, destination, timeout=cfg.timeout, delay=cfg.delay)
+
+
+async def _safe_list(
+    client: GMA2TelnetClient,
+    cfg: ScanConfig,
+    abs_path: Optional[list[int]] = None,
+):
+    """List with automatic reconnect on failure."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            result = await list_destination(
+                client, timeout=cfg.timeout, delay=cfg.delay
+            )
+            if result.raw_response is not None and len(result.raw_response) > 0:
+                return result
+            if attempt < MAX_RETRIES - 1:
+                print(f"  [RECONNECT] Empty list response (attempt {attempt+1})")
+                await _reconnect(client, cfg)
+                if abs_path is not None:
+                    await _navigate_to_path_raw(client, abs_path, cfg)
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1:
+                print(f"  [RECONNECT] Error on list: {e} (attempt {attempt+1})")
+                await _reconnect(client, cfg)
+                if abs_path is not None:
+                    await _navigate_to_path_raw(client, abs_path, cfg)
+            else:
+                raise
+    return await list_destination(client, timeout=cfg.timeout, delay=cfg.delay)
+
+
+# ---------------------------------------------------------------------------
 # Absolute navigation
 # ---------------------------------------------------------------------------
 
-async def _navigate_to_path(
+async def _navigate_to_path_raw(
     client: GMA2TelnetClient,
     abs_path: list[int],
     cfg: ScanConfig,
 ) -> Optional[str]:
-    """Navigate from root to an absolute path: cd / then cd N1, cd N2, ...
+    """Navigate from root to an absolute path (no reconnect wrapper).
 
-    Returns the parsed location at the final step, or None if any step failed.
+    Used internally by _reconnect recovery to avoid infinite loops.
     """
     root_nav = await navigate(client, "/", timeout=cfg.timeout, delay=cfg.delay)
     current_loc = root_nav.parsed_prompt.location
@@ -244,6 +340,20 @@ async def _navigate_to_path(
         current_loc = new_loc
 
     return current_loc
+
+
+async def _navigate_to_path(
+    client: GMA2TelnetClient,
+    abs_path: list[int],
+    cfg: ScanConfig,
+) -> Optional[str]:
+    """Navigate from root to an absolute path with reconnect support."""
+    try:
+        return await _navigate_to_path_raw(client, abs_path, cfg)
+    except Exception as e:
+        print(f"  [RECONNECT] Path navigation failed: {e} — reconnecting")
+        await _reconnect(client, cfg)
+        return await _navigate_to_path_raw(client, abs_path, cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -292,8 +402,8 @@ async def _scan_children(
         child_abs_path = parent_abs_path + [idx]
         child_path_str = ".".join(str(i) for i in child_abs_path)
 
-        # cd N — enter child
-        nav = await navigate(client, str(idx), timeout=cfg.timeout, delay=cfg.delay)
+        # cd N — enter child (with reconnect support)
+        nav = await _safe_navigate(client, str(idx), cfg, abs_path=parent_abs_path)
         child_location = nav.parsed_prompt.location
 
         # MISS: location is None or unchanged from parent
@@ -321,7 +431,7 @@ async def _scan_children(
                 f"+{stats['visited']} ~{stats['skipped']}] "
                 f"cd {idx} -> CIRCULAR ({child_location!r})"
             )
-            await navigate(client, "..", timeout=cfg.timeout, delay=cfg.delay)
+            await _safe_navigate(client, "..", cfg, abs_path=parent_abs_path)
             consecutive_failures += 1
             if consecutive_failures >= cfg.stop_after_failures:
                 break
@@ -330,8 +440,15 @@ async def _scan_children(
         consecutive_failures = 0
         stats["visited"] += 1
 
-        # list — capture full raw output + parsed entries
-        lst = await list_destination(client, timeout=cfg.timeout, delay=cfg.delay)
+        # Periodic health check
+        if stats["visited"] % HEALTH_CHECK_EVERY == 0:
+            if not await _is_alive(client):
+                print(f"  [RECONNECT] Health check failed at node {stats['visited']}")
+                await _reconnect(client, cfg)
+                await _navigate_to_path_raw(client, child_abs_path, cfg)
+
+        # list — capture full raw output + parsed entries (with reconnect)
+        lst = await _safe_list(client, cfg, abs_path=child_abs_path)
         entries = lst.parsed_list.entries
         raw_list_text = _clean_list_text(lst.raw_response)
         raw_entries = _serialize_entries(entries)
@@ -391,8 +508,8 @@ async def _scan_children(
 
         children.append(node)
 
-        # cd .. — try to return to parent
-        back_nav = await navigate(client, "..", timeout=cfg.timeout, delay=cfg.delay)
+        # cd .. — try to return to parent (with reconnect)
+        back_nav = await _safe_navigate(client, "..", cfg, abs_path=child_abs_path)
         back_location = back_nav.parsed_prompt.location
 
         if back_location != parent_location:
@@ -434,15 +551,13 @@ async def scan_tree(
 
     # Step 1: cd / — go to root
     print("Navigating to root (cd /)...")
-    root_nav = await navigate(client, "/", timeout=cfg.timeout, delay=cfg.delay)
+    root_nav = await _safe_navigate(client, "/", cfg)
     root_location = root_nav.parsed_prompt.location
     print(f"Root location: {root_location!r}")
 
     # Step 2: list — enumerate root children with full output
     print("Listing root children...")
-    root_list = await list_destination(
-        client, timeout=cfg.timeout, delay=cfg.delay
-    )
+    root_list = await _safe_list(client, cfg)
     root_entries = root_list.parsed_list.entries
     root_list_text = _clean_list_text(root_list.raw_response)
     print(f"Root children: {len(root_entries)} entries parsed\n")
@@ -468,8 +583,8 @@ async def scan_tree(
         # Progress indicator
         print(f"\n--- Root branch {branch_num}/{total_root} (index {idx}) ---")
 
-        # cd N — enter root child
-        nav = await navigate(client, str(idx), timeout=cfg.timeout, delay=cfg.delay)
+        # cd N — enter root child (with reconnect)
+        nav = await _safe_navigate(client, str(idx), cfg, abs_path=[])
         child_location = nav.parsed_prompt.location
 
         # MISS check
@@ -488,14 +603,14 @@ async def scan_tree(
                 )
                 break
             # cd / to reset (in case cd N put us somewhere weird)
-            await navigate(client, "/", timeout=cfg.timeout, delay=cfg.delay)
+            await _safe_navigate(client, "/", cfg)
             continue
 
         consecutive_failures = 0
         stats["visited"] += 1
 
-        # list at this root child — capture full output
-        lst = await list_destination(client, timeout=cfg.timeout, delay=cfg.delay)
+        # list at this root child — capture full output (with reconnect)
+        lst = await _safe_list(client, cfg, abs_path=[idx])
         entries = lst.parsed_list.entries
         list_text = _clean_list_text(lst.raw_response)
         raw_entries = _serialize_entries(entries)
@@ -551,7 +666,7 @@ async def scan_tree(
         root_children.append(node)
 
         # cd / — always return to root between top-level branches
-        await navigate(client, "/", timeout=cfg.timeout, delay=cfg.delay)
+        await _safe_navigate(client, "/", cfg)
 
         # Progress summary after each root branch
         print(
