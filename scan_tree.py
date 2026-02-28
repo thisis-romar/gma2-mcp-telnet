@@ -37,8 +37,8 @@ Options:
     --max-index 60       Fallback index limit when list has no parseable IDs
     --failures 3         Stop a branch after N consecutive missing indexes
     --output scan_output.json
-    --delay 0.2          Seconds between commands
-    --timeout 2.0        Telnet read timeout per command
+    --delay 0.08         Seconds between commands
+    --timeout 0.8        Telnet read timeout per command
 """
 
 from __future__ import annotations
@@ -77,8 +77,8 @@ class ScanConfig:
     max_index: int = 60           # fallback limit when list returns no entries
     stop_after_failures: int = 3  # stop probing after N consecutive misses
     output_path: str = "scan_output.json"
-    delay: float = 0.2
-    timeout: float = 2.0
+    delay: float = 0.08
+    timeout: float = 0.8
 
 
 # ---------------------------------------------------------------------------
@@ -224,14 +224,14 @@ def _serialize_entries(entries) -> list[dict]:
 # Connection health & reconnect
 # ---------------------------------------------------------------------------
 
-MAX_RETRIES = 3          # reconnect attempts per failed command
-HEALTH_CHECK_EVERY = 50  # check connection health every N nodes
+MAX_RETRIES = 3           # reconnect attempts per failed command
+HEALTH_CHECK_EVERY = 100  # check connection health every N nodes
 
 
 async def _is_alive(client: GMA2TelnetClient) -> bool:
     """Quick health check: send empty line, expect *some* response."""
     try:
-        resp = await client.send_command_with_response("", timeout=2.0, delay=0.1)
+        resp = await client.send_command_with_response("", timeout=1.0, delay=0.05)
         return resp is not None and len(resp) > 0
     except Exception:
         return False
@@ -244,10 +244,10 @@ async def _reconnect(client: GMA2TelnetClient, cfg: ScanConfig) -> None:
         await client.disconnect()
     except Exception:
         pass
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.5)
     await client.connect()
     await client.login()
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.3)
     print("  [RECONNECT] Reconnected and logged in.")
 
 
@@ -804,8 +804,8 @@ def parse_args() -> ScanConfig:
     p.add_argument("--max-index",  type=int, default=60,   dest="max_index")
     p.add_argument("--failures",   type=int, default=3)
     p.add_argument("--output",     default="scan_output.json")
-    p.add_argument("--delay",      type=float, default=0.2)
-    p.add_argument("--timeout",    type=float, default=2.0)
+    p.add_argument("--delay",      type=float, default=0.08)
+    p.add_argument("--timeout",    type=float, default=0.8)
     args = p.parse_args()
 
     return ScanConfig(
