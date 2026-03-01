@@ -287,10 +287,11 @@ class TestParseListOutput:
 
 
 class TestListEntry:
-    def test_frozen(self):
+    def test_mutable_with_columns(self):
+        """ListEntry is mutable (not frozen) to support the columns dict field."""
         e = ListEntry(object_type="Group", object_id="1", name="Test")
-        with pytest.raises(AttributeError):
-            e.name = "Changed"
+        e.columns = {"key": "value"}
+        assert e.columns == {"key": "value"}
 
     def test_defaults_none(self):
         e = ListEntry()

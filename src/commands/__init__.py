@@ -71,6 +71,7 @@ from .objects import (
 from .functions import (
     # Assign Function Keyword
     assign,
+    assign_property,
     assign_fade,
     assign_function,
     assign_to_layout,
@@ -205,6 +206,7 @@ __all__ = [
     "timer",
     # Assign Function Keyword
     "assign",
+    "assign_property",
     "assign_fade",
     "assign_function",
     "assign_to_layout",

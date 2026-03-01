@@ -8,6 +8,7 @@ Usage:
     uv run python -m src.server
 """
 
+import json
 import logging
 import os
 
@@ -24,7 +25,8 @@ from src.commands import (
     pause_sequence,
     goto_cue,
 )
-from src.navigation import navigate, get_current_location, list_destination, scan_indexes
+from src.navigation import navigate, get_current_location, list_destination, scan_indexes, set_property
+from src.vocab import RiskTier, build_v39_spec, classify_token
 
 # Load environment variables
 load_dotenv()
@@ -41,6 +43,10 @@ GMA_HOST = os.getenv("GMA_HOST", "127.0.0.1")
 GMA_PORT = int(os.getenv("GMA_PORT", "30000"))
 GMA_USER = os.getenv("GMA_USER", "administrator")
 GMA_PASSWORD = os.getenv("GMA_PASSWORD", "admin")
+GMA_SAFETY_LEVEL = os.getenv("GMA_SAFETY_LEVEL", "standard").lower()
+
+# Build vocab spec once for token classification / safety gating
+_vocab_spec = build_v39_spec()
 
 # Create MCP server
 mcp = FastMCP(
@@ -68,6 +74,10 @@ mcp = FastMCP(
     6. list_console_destination - List objects at the current destination
        After cd-ing into a location, run list to enumerate children.
        Returns parsed entries with object-type, object-id, and element names.
+
+    7. set_node_property - Set a property on a node in the object tree
+       Uses dot-separated index paths from the scan tree output.
+       Example: path="3.1", property_name="Telnet", value="Login Disabled"
     """,
 )
 
@@ -209,39 +219,105 @@ async def execute_sequence(
 
 
 @mcp.tool()
-async def send_raw_command(command: str) -> str:
+async def send_raw_command(
+    command: str,
+    confirm_destructive: bool = False,
+) -> str:
     """
-    Send a raw MA command to grandMA2.
+    Send a raw MA command to grandMA2 and return the console response.
 
     WARNING: This is a low-level tool that sends commands directly to a LIVE
     lighting console. Prefer the higher-level tools (create_fixture_group,
     execute_sequence) whenever possible.
 
-    SAFETY: Be extremely careful with destructive commands. The following
-    command types can cause data loss or disrupt live shows:
-    - delete / remove: Permanently removes show data (cues, groups, presets)
-    - reset / restart / reboot / shutdown: Resets or shuts down the console
-    - store with /overwrite: Overwrites existing show data
-    - newshow / deleteshow: Creates or deletes entire shows
-    - blackout: Kills all lighting output (disruptive during live events)
-
-    Always double-check command syntax before sending. There is no undo for
-    most destructive operations.
+    SAFETY: Commands are classified by risk tier before sending:
+    - SAFE_READ (list, info, cd): Always allowed
+    - SAFE_WRITE (at, go, clear, blackout): Allowed in standard and admin mode
+    - DESTRUCTIVE (delete, store, assign, shutdown): Blocked unless
+      confirm_destructive=True. Set GMA_SAFETY_LEVEL=admin to skip checks.
 
     Args:
         command: Raw MA command to send
+        confirm_destructive: Must be True to send destructive commands
+            (delete, store, assign, shutdown, newshow, etc.)
 
     Returns:
-        str: Operation result message
+        str: JSON with command_sent, risk_tier, raw_response, and any
+            safety block information.
 
     Examples:
         - go+ executor 1.1
-        - store sequence 1 cue 1
         - list cue
+        - store sequence 1 cue 1 (requires confirm_destructive=True)
     """
+    # Input sanitization: reject line breaks that could inject commands
+    if "\r" in command or "\n" in command:
+        return json.dumps({
+            "command_sent": None,
+            "error": "Command contains line breaks (\\r or \\n) which could "
+                     "inject additional commands. Remove them and retry.",
+            "blocked": True,
+        }, indent=2)
+
+    # Safety gate: classify the first token
+    first_token = command.strip().split()[0] if command.strip() else ""
+    resolved = classify_token(first_token, _vocab_spec)
+    risk = resolved.risk
+
+    # Block destructive commands unless explicitly confirmed or admin mode
+    if risk == RiskTier.DESTRUCTIVE and GMA_SAFETY_LEVEL != "admin":
+        if not confirm_destructive:
+            logger.warning(
+                "BLOCKED destructive command: %r (risk=%s, canonical=%s)",
+                command, risk.value, resolved.canonical,
+            )
+            return json.dumps({
+                "command_sent": None,
+                "risk_tier": risk.value,
+                "canonical_keyword": resolved.canonical,
+                "error": (
+                    f"Command '{first_token}' is classified as {risk.value}. "
+                    f"Set confirm_destructive=True to proceed, or use "
+                    f"GMA_SAFETY_LEVEL=admin to disable safety checks."
+                ),
+                "blocked": True,
+            }, indent=2)
+        logger.warning(
+            "CONFIRMED destructive command: %r (risk=%s, canonical=%s)",
+            command, risk.value, resolved.canonical,
+        )
+
+    # Block all write commands in read-only mode
+    if GMA_SAFETY_LEVEL == "read-only" and risk != RiskTier.SAFE_READ:
+        logger.warning(
+            "BLOCKED non-read command in read-only mode: %r (risk=%s)",
+            command, risk.value,
+        )
+        return json.dumps({
+            "command_sent": None,
+            "risk_tier": risk.value,
+            "error": (
+                f"Server is in read-only mode (GMA_SAFETY_LEVEL=read-only). "
+                f"Only SAFE_READ commands (list, info, cd) are allowed."
+            ),
+            "blocked": True,
+        }, indent=2)
+
+    logger.info(
+        "Sending command: %r (risk=%s, canonical=%s)",
+        command, risk.value, resolved.canonical,
+    )
+
     client = await get_client()
-    await client.send_command(command)
-    return f"Sent command: {command}"
+    raw_response = await client.send_command_with_response(command)
+
+    return json.dumps({
+        "command_sent": command,
+        "risk_tier": risk.value,
+        "canonical_keyword": resolved.canonical,
+        "raw_response": raw_response,
+        "blocked": False,
+    }, indent=2)
 
 
 @mcp.tool()
@@ -282,8 +358,6 @@ async def navigate_console(
         - Navigate by index: destination="5"
         - After navigating, use list_console_destination to enumerate objects
     """
-    import json
-
     client = await get_client()
     result = await navigate(client, destination, object_id)
 
@@ -315,8 +389,6 @@ async def get_console_location() -> str:
         str: JSON with raw_response, parsed prompt details,
              and success indicator.
     """
-    import json
-
     client = await get_client()
     result = await get_current_location(client)
 
@@ -355,24 +427,28 @@ async def list_console_destination(
         str: JSON with command_sent, raw_response, and parsed entries
              (each with object_type, object_id, name).
     """
-    import json
-
     client = await get_client()
     result = await list_destination(client, object_type)
+
+    entries_out = []
+    for e in result.parsed_list.entries:
+        entry = {
+            "object_type": e.object_type,
+            "object_id": e.object_id,
+            "name": e.name,
+            "raw_line": e.raw_line,
+        }
+        if e.col3 is not None:
+            entry["col3"] = e.col3
+        if e.columns:
+            entry["columns"] = e.columns
+        entries_out.append(entry)
 
     return json.dumps(
         {
             "command_sent": result.command_sent,
             "raw_response": result.raw_response,
-            "entries": [
-                {
-                    "object_type": e.object_type,
-                    "object_id": e.object_id,
-                    "name": e.name,
-                    "raw_line": e.raw_line,
-                }
-                for e in result.parsed_list.entries
-            ],
+            "entries": entries_out,
             "entry_count": len(result.parsed_list.entries),
         },
         indent=2,
@@ -410,8 +486,6 @@ async def scan_console_indexes(
              returned list output, each with index, location, object_type,
              and parsed entries (object_type, object_id, name).
     """
-    import json
-
     client = await get_client()
     results = await scan_indexes(
         client,
@@ -440,6 +514,68 @@ async def scan_console_indexes(
                 }
                 for r in results
             ],
+        },
+        indent=2,
+    )
+
+
+@mcp.tool()
+async def set_node_property(
+    path: str,
+    property_name: str,
+    value: str,
+    verify: bool = True,
+) -> str:
+    """
+    Set a property on a node in the grandMA2 object tree.
+
+    Uses the scan tree path notation (dot-separated indexes) to navigate
+    to a node and set an inline property using Assign [index]/property=value.
+
+    The path uses the same index-based notation as the scan tree output.
+    Split the path into parent segments and target index:
+    - "3.1" → cd 3 (Settings), then Assign 1/property=value (on Global)
+    - "4.1" → cd 4 (DMX_Protocols), then Assign 1/property=value (on Art-Net)
+    - "3" → at root, Assign 3/property=value (on Settings itself)
+
+    After setting, navigates back to root (cd /).
+    If verify=True (default), re-lists and confirms the property changed.
+
+    SAFETY: This modifies live console state. Double-check property names
+    and values before calling. Use list_console_destination to inspect
+    current values first.
+
+    Args:
+        path: Dot-separated index path (e.g. "3.1" for Settings/Global)
+        property_name: Property to set (e.g. "Telnet", "OutActive")
+        value: New value (e.g. "Login Enabled", "On")
+        verify: Re-list after setting to confirm the change (default True)
+
+    Returns:
+        str: JSON with commands_sent, success, verified_value, and any errors.
+
+    Examples:
+        - Set telnet to disabled: path="3.1", property_name="Telnet", value="Login Disabled"
+        - Enable Art-Net output: path="4.1", property_name="OutActive", value="On"
+    """
+    client = await get_client()
+    result = await set_property(
+        client,
+        path,
+        property_name,
+        value,
+        verify=verify,
+    )
+
+    return json.dumps(
+        {
+            "path": result.path,
+            "property_name": property_name,
+            "value": value,
+            "commands_sent": result.commands_sent,
+            "success": result.success,
+            "verified_value": result.verified_value,
+            "error": result.error,
         },
         indent=2,
     )

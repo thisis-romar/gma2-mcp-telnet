@@ -22,6 +22,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional, Union
 
+from src.commands import assign_property as _build_assign_property
 from src.commands import changedest, list_objects
 from src.prompt_parser import (
     ConsolePrompt,
@@ -200,6 +201,126 @@ async def list_destination(
         command_sent=cmd,
         raw_response=raw_response,
         parsed_list=parsed,
+    )
+
+
+@dataclass(frozen=True)
+class SetPropertyResult:
+    """Result of setting a property on a node in the object tree.
+
+    Attributes:
+        path: The dot-separated index path that was targeted.
+        commands_sent: All MA commands that were sent (cd, assign, list, cd /).
+        raw_responses: Raw telnet responses for each command.
+        success: ``True`` if the assign command was sent and root was restored.
+        verified_value: The property value read back after setting (if verify was True).
+        error: Error message if something went wrong, ``None`` otherwise.
+    """
+
+    path: str
+    commands_sent: list
+    raw_responses: list
+    success: bool
+    verified_value: Optional[str] = None
+    error: Optional[str] = None
+
+
+async def set_property(
+    client: GMA2TelnetClient,
+    path: str,
+    property_name: str,
+    value: str,
+    *,
+    verify: bool = True,
+    timeout: float = 2.0,
+    delay: float = 0.3,
+) -> SetPropertyResult:
+    """Navigate to a node by path, set a property, and return to root.
+
+    Uses the MA2 inline property assignment syntax::
+
+        cd [parent]
+        assign [child_index]/property=value
+        cd /
+
+    The *path* is a dot-separated string of numeric indexes matching the
+    scan tree output (e.g. ``"3.1"`` for Settings/Global).  The last
+    segment is the target child index; all preceding segments are
+    navigated via ``cd``.
+
+    Args:
+        client: Connected GMA2TelnetClient instance.
+        path: Dot-separated index path (e.g. ``"3.1"``, ``"4.1"``).
+        property_name: Property to set (e.g. ``"Telnet"``, ``"OutActive"``).
+        value: New value for the property.
+        verify: If ``True``, re-lists after setting and checks the value.
+        timeout: Per-command telnet timeout.
+        delay: Per-command delay after sending.
+
+    Returns:
+        SetPropertyResult with commands sent, verification, and status.
+    """
+    commands_sent: list[str] = []
+    raw_responses: list[str] = []
+
+    segments = path.split(".")
+    if not all(s.strip() for s in segments):
+        return SetPropertyResult(
+            path=path,
+            commands_sent=[],
+            raw_responses=[],
+            success=False,
+            error=f"Invalid path: {path!r} — segments must be non-empty numeric indexes",
+        )
+
+    parent_segments = segments[:-1]
+    target_index = segments[-1]
+
+    # 1. Navigate to root for clean state
+    nav = await navigate(client, "/", timeout=timeout, delay=delay)
+    commands_sent.append(nav.command_sent)
+    raw_responses.append(nav.raw_response)
+
+    # 2. Navigate through parent segments
+    for seg in parent_segments:
+        nav = await navigate(client, seg, timeout=timeout, delay=delay)
+        commands_sent.append(nav.command_sent)
+        raw_responses.append(nav.raw_response)
+
+    # 3. Send the assign command
+    assign_cmd = _build_assign_property(target_index, property_name, value)
+    logger.info("Setting property: %s", assign_cmd)
+    assign_response = await client.send_command_with_response(
+        assign_cmd, timeout=timeout, delay=delay
+    )
+    commands_sent.append(assign_cmd)
+    raw_responses.append(assign_response)
+
+    # 4. Optionally verify by re-listing
+    verified_value: Optional[str] = None
+    if verify:
+        lst = await list_destination(client, timeout=timeout, delay=delay)
+        commands_sent.append(lst.command_sent)
+        raw_responses.append(lst.raw_response)
+
+        # Find the target entry and check its columns
+        for entry in lst.parsed_list.entries:
+            if entry.object_id == target_index:
+                if entry.columns and property_name in entry.columns:
+                    verified_value = entry.columns[property_name]
+                break
+
+    # 5. Return to root
+    nav = await navigate(client, "/", timeout=timeout, delay=delay)
+    commands_sent.append(nav.command_sent)
+    raw_responses.append(nav.raw_response)
+
+    return SetPropertyResult(
+        path=path,
+        commands_sent=commands_sent,
+        raw_responses=raw_responses,
+        success=True,
+        verified_value=verified_value,
     )
 
 

@@ -78,6 +78,7 @@ from .edit import (
 # Assignment Function Keywords
 from .assignment import (
     assign,
+    assign_property,
     assign_function,
     assign_fade,
     assign_to_layout,
@@ -230,6 +231,7 @@ __all__ = [
     "move",
     # Assign
     "assign",
+    "assign_property",
     "assign_function",
     "assign_fade",
     "assign_to_layout",

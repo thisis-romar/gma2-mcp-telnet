@@ -189,6 +189,9 @@ class GMA2TelnetClient:
         if self._writer is None:
             raise RuntimeError("Connection not established, call connect() first")
 
+        # Sanitize: strip embedded line breaks to prevent command injection
+        command = command.replace("\r", "").replace("\n", "")
+
         logger.debug(f"Sending command: {command}")
 
         # Send command (automatically add newline)
@@ -223,6 +226,9 @@ class GMA2TelnetClient:
         """
         if self._writer is None or self._reader is None:
             raise RuntimeError("Connection not established, call connect() first")
+
+        # Sanitize: strip embedded line breaks to prevent command injection
+        command = command.replace("\r", "").replace("\n", "")
 
         logger.debug(f"Sending command with response: {command}")
 
