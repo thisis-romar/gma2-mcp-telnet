@@ -24,6 +24,21 @@ from src.commands import (
     go_sequence,
     pause_sequence,
     goto_cue,
+    fixture_at,
+    group_at,
+    channel_at,
+    attribute_at,
+    at,
+    at_full,
+    at_zero,
+    call,
+    store_cue as build_store_cue,
+    label as build_label,
+    info as build_info,
+    clear as build_clear,
+    clear_all as build_clear_all,
+    clear_selection as build_clear_selection,
+    clear_active as build_clear_active,
 )
 from src.navigation import navigate, get_current_location, list_destination, scan_indexes, set_property
 from src.vocab import RiskTier, build_v39_spec, classify_token
@@ -78,6 +93,21 @@ mcp = FastMCP(
     7. set_node_property - Set a property on a node in the object tree
        Uses dot-separated index paths from the scan tree output.
        Example: path="3.1", property_name="Telnet", value="Login Disabled"
+
+    8. set_intensity - Set dimmer level on fixtures, groups, or channels
+       Example: Set fixture 1 to 50%, set group 3 to full
+
+    9. apply_preset - Apply a stored preset (color, position, gobo, etc.)
+       Example: Apply color preset 3 to group 2
+
+    10. store_current_cue - Store programmer state into a cue (DESTRUCTIVE)
+        Example: Store cue 5 named "Opening Look"
+
+    11. get_object_info - Query info on any console object
+        Example: Get info on group 3, sequence 1
+
+    12. clear_programmer - Clear programmer state (all, selection, active)
+        Example: Clear all, or just deselect fixtures
     """,
 )
 
@@ -579,6 +609,268 @@ async def set_node_property(
         },
         indent=2,
     )
+
+
+@mcp.tool()
+async def set_intensity(
+    target_type: str,
+    target_id: int,
+    level: int | float,
+    end_id: int | None = None,
+) -> str:
+    """
+    Set the intensity (dimmer) level on fixtures, groups, or channels.
+
+    This is the most fundamental lighting operation — controlling how bright
+    lights are. Selects the target and sets it to the specified percentage.
+
+    Args:
+        target_type: Object type — "fixture", "group", or "channel"
+        target_id: Object ID number
+        level: Intensity percentage (0-100). Use 0 for off, 100 for full.
+        end_id: End ID for range selection (e.g., fixture 1 thru 10)
+
+    Returns:
+        str: JSON with command_sent and raw_response from the console.
+
+    Examples:
+        - Set fixture 1 to 50%: target_type="fixture", target_id=1, level=50
+        - Set group 3 to full: target_type="group", target_id=3, level=100
+        - Set fixtures 1-10 to 75%: target_type="fixture", target_id=1, level=75, end_id=10
+    """
+    target_type = target_type.lower()
+
+    if target_type == "fixture":
+        cmd = fixture_at(target_id, level, end=end_id)
+    elif target_type == "group":
+        cmd = group_at(target_id, level)
+    elif target_type == "channel":
+        cmd = channel_at(target_id, level, end=end_id)
+    else:
+        return json.dumps({
+            "error": f"Unknown target_type: {target_type}. Use 'fixture', 'group', or 'channel'.",
+        }, indent=2)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+async def apply_preset(
+    preset_type: str,
+    preset_id: int,
+    fixture_id: int | None = None,
+    fixture_end: int | None = None,
+    group_id: int | None = None,
+) -> str:
+    """
+    Apply a preset to fixtures or groups.
+
+    Presets are stored lighting looks (color, position, gobo, etc.) that
+    can be recalled by type and ID. Optionally select fixtures/group first.
+
+    Preset types: "dimmer" (1), "color" (2), "position" (3), "gobo" (4),
+    "beam" (5), "focus" (6), "control" (7), "shapers" (8), "video" (9)
+
+    Args:
+        preset_type: Preset type name or number (e.g. "color", "position", "4")
+        preset_id: Preset number within that type
+        fixture_id: Optional fixture to select first (single or range start)
+        fixture_end: Optional end fixture for range selection
+        group_id: Optional group to select first (alternative to fixture_id)
+
+    Returns:
+        str: JSON with commands_sent and raw_response.
+
+    Examples:
+        - Apply color preset 3 to current selection: preset_type="color", preset_id=3
+        - Apply position preset 1 to group 2: preset_type="position", preset_id=1, group_id=2
+        - Apply gobo preset 5 to fixtures 1-10: preset_type="gobo", preset_id=5, fixture_id=1, fixture_end=10
+    """
+    commands_sent = []
+    client = await get_client()
+
+    # Optionally select fixtures or group first
+    if group_id is not None:
+        sel_cmd = f"group {group_id}"
+        await client.send_command_with_response(sel_cmd)
+        commands_sent.append(sel_cmd)
+    elif fixture_id is not None:
+        sel_cmd = select_fixture(fixture_id, fixture_end)
+        await client.send_command_with_response(sel_cmd)
+        commands_sent.append(sel_cmd)
+
+    # Build the preset type reference
+    preset_type_str = preset_type.lower()
+    # Map common names to numbers for the call syntax
+    type_map = {
+        "dimmer": "1", "color": "2", "position": "3", "gobo": "4",
+        "beam": "5", "focus": "6", "control": "7", "shapers": "8", "video": "9",
+    }
+    type_num = type_map.get(preset_type_str, preset_type_str)
+
+    call_cmd = call(f"preset {type_num}.{preset_id}")
+    raw_response = await client.send_command_with_response(call_cmd)
+    commands_sent.append(call_cmd)
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+async def store_current_cue(
+    cue_number: int,
+    sequence_id: int | None = None,
+    label: str | None = None,
+    merge: bool = False,
+    overwrite: bool = False,
+) -> str:
+    """
+    Store the current programmer state as a cue.
+
+    Saves whatever is currently in the programmer (selected fixtures +
+    active values) into a cue in the specified sequence. This is how
+    lighting looks are programmed into a show.
+
+    SAFETY: This is a STORE operation which modifies show data.
+
+    Args:
+        cue_number: Cue number to store (required)
+        sequence_id: Sequence to store into (omit to use selected executor)
+        label: Optional name for the cue
+        merge: Merge new values into existing cue (default False)
+        overwrite: Replace existing cue completely (default False)
+
+    Returns:
+        str: JSON with commands_sent and raw_response.
+
+    Examples:
+        - Store cue 5: cue_number=5
+        - Store cue 3 named "Opening Look": cue_number=3, label="Opening Look"
+        - Merge into cue 1: cue_number=1, merge=True
+    """
+    commands_sent = []
+    client = await get_client()
+
+    # Build store cue command
+    store_cmd = build_store_cue(
+        cue_id=cue_number,
+        merge=merge,
+        overwrite=overwrite,
+    )
+    if sequence_id is not None:
+        store_cmd += f" sequence {sequence_id}"
+
+    raw_response = await client.send_command_with_response(store_cmd)
+    commands_sent.append(store_cmd)
+
+    # Optionally label the cue
+    if label and cue_number is not None:
+        cue_ref = str(cue_number)
+        if sequence_id is not None:
+            cue_ref += f" sequence {sequence_id}"
+        label_cmd = build_label("cue", cue_ref, label)
+        await client.send_command_with_response(label_cmd)
+        commands_sent.append(label_cmd)
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+async def get_object_info(
+    object_type: str,
+    object_id: int | str,
+) -> str:
+    """
+    Query information about any object in the show.
+
+    Returns the console's info response for the specified object,
+    which includes its properties, status, and metadata.
+
+    Args:
+        object_type: Object type (e.g. "fixture", "group", "cue",
+            "sequence", "preset", "executor", "macro")
+        object_id: Object ID. For presets use "type.id" format
+            (e.g. "2.1" for color preset 1).
+
+    Returns:
+        str: JSON with command_sent and raw_response containing
+            the object's information.
+
+    Examples:
+        - Get info on group 3: object_type="group", object_id=3
+        - Get info on cue 5: object_type="cue", object_id=5
+        - Get info on color preset 1: object_type="preset", object_id="2.1"
+    """
+    cmd = build_info(object_type, object_id)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+async def clear_programmer(
+    mode: str = "all",
+) -> str:
+    """
+    Clear the programmer to reset fixture selection and active values.
+
+    The programmer holds the current working state — selected fixtures
+    and any values you've applied. Clearing it gives you a clean slate.
+
+    Modes:
+    - "all": Empty the entire programmer (selection + values)
+    - "selection": Deselect all fixtures but keep active values
+    - "active": Deactivate values but keep fixture selection
+    - "clear": Sequential clear (selection → active → all on repeated calls)
+
+    Args:
+        mode: Clear mode — "all" (default), "selection", "active", or "clear"
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - Full reset: mode="all"
+        - Just deselect fixtures: mode="selection"
+        - Just drop active values: mode="active"
+    """
+    mode = mode.lower()
+    if mode == "all":
+        cmd = build_clear_all()
+    elif mode == "selection":
+        cmd = build_clear_selection()
+    elif mode == "active":
+        cmd = build_clear_active()
+    elif mode == "clear":
+        cmd = build_clear()
+    else:
+        return json.dumps({
+            "error": f"Unknown mode: {mode}. Use 'all', 'selection', 'active', or 'clear'.",
+        }, indent=2)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
 
 
 # ============================================================
