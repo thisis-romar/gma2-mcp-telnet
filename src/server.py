@@ -48,6 +48,48 @@ from src.commands import (
     copy as build_copy,
     move as build_move,
     store_preset as build_store_preset,
+    # playback_action
+    go as build_go,
+    go_back as build_go_back,
+    goto as build_goto,
+    go_fast_back as build_go_fast_back,
+    go_fast_forward as build_go_fast_forward,
+    def_go_forward as build_def_go_forward,
+    def_go_pause as build_def_go_pause,
+    # assign_object
+    assign as build_assign,
+    assign_function as build_assign_function,
+    assign_fade as build_assign_fade,
+    assign_to_layout as build_assign_to_layout,
+    empty as build_empty,
+    temp_fader as build_temp_fader,
+    # edit_object
+    edit as build_edit,
+    cut as build_cut,
+    paste as build_paste,
+    # remove_content
+    remove as build_remove,
+    remove_fixture as build_remove_fixture,
+    remove_effect as build_remove_effect,
+    remove_preset_type as build_remove_preset_type,
+    remove_selection as build_remove_selection,
+    # query_object_list
+    list_objects as build_list_objects,
+    list_cue as build_list_cue,
+    list_group as build_list_group,
+    list_preset as build_list_preset,
+    list_attribute as build_list_attribute,
+    list_messages as build_list_messages,
+    # manage_variable
+    set_var as build_set_var,
+    set_user_var as build_set_user_var,
+    add_var as build_add_var,
+    add_user_var as build_add_user_var,
+    # label_or_appearance
+    label_preset as build_label_preset,
+    appearance as build_appearance,
+    # store_object
+    store as build_store_generic,
 )
 from src.navigation import navigate, get_current_location, list_destination, scan_indexes, set_property
 from src.vocab import RiskTier, build_v39_spec, classify_token
@@ -77,67 +119,47 @@ mcp = FastMCP(
     name="grandMA2-MCP",
     instructions="""
     This is an MCP server for controlling grandMA2 lighting console.
-    You can use the following tools to operate grandMA2:
+    You can use the following 28 tools to operate grandMA2:
 
-    1. create_fixture_group - Create a fixture group
-       Example: Save fixtures 1 to 10 as group 1 with name "Front Wash"
+    --- Navigation & Inspection ---
+    1. navigate_console - Navigate the console object tree (cd)
+    2. get_console_location - Query current console destination
+    3. list_console_destination - List objects at current destination
+    4. scan_console_indexes - Batch scan numeric indexes at any tree level
 
-    2. execute_sequence - Execute sequence operations
-       Example: Execute sequence 1, pause sequence 2, jump to cue 5 of sequence 1
+    --- Lighting Control ---
+    5. set_intensity - Set dimmer level on fixtures, groups, or channels
+    6. set_attribute - Set attribute values (Pan, Tilt, Zoom, etc.)
+    7. apply_preset - Apply a stored preset (color, position, gobo, etc.)
+    8. execute_sequence - Legacy sequence playback (go/pause/goto)
+    9. playback_action - Full playback control (go, go_back, goto, fast_forward, etc.)
+    10. clear_programmer - Clear programmer state (all, selection, active)
+    11. park_fixture - Park a fixture/DMX at current or specified output
+    12. unpark_fixture - Release a parked fixture/DMX
 
-    3. send_raw_command - Send raw MA commands
-       Example: Send "blackout" or "go+ executor 1.1"
-
-    4. navigate_console - Navigate the console's object tree (ChangeDest/cd)
-       Example: cd to "Group.1", go up with "..", return to root with "/"
-       Returns raw telnet response + parsed prompt state for exploration.
-
-    5. get_console_location - Query the current console destination
-       Returns raw telnet response + parsed prompt state without navigating.
-
-    6. list_console_destination - List objects at the current destination
-       After cd-ing into a location, run list to enumerate children.
-       Returns parsed entries with object-type, object-id, and element names.
-
-    7. set_node_property - Set a property on a node in the object tree
-       Uses dot-separated index paths from the scan tree output.
-       Example: path="3.1", property_name="Telnet", value="Login Disabled"
-
-    8. set_intensity - Set dimmer level on fixtures, groups, or channels
-       Example: Set fixture 1 to 50%, set group 3 to full
-
-    9. apply_preset - Apply a stored preset (color, position, gobo, etc.)
-       Example: Apply color preset 3 to group 2
-
-    10. store_current_cue - Store programmer state into a cue (DESTRUCTIVE)
-        Example: Store cue 5 named "Opening Look"
-
-    11. get_object_info - Query info on any console object
-        Example: Get info on group 3, sequence 1
-
-    12. clear_programmer - Clear programmer state (all, selection, active)
-        Example: Clear all, or just deselect fixtures
-
-    13. set_attribute - Set fixture attributes (Pan, Tilt, Zoom, etc.)
-        Example: Set Pan to 120 on group 2
-
-    14. park_fixture - Park a fixture/DMX at its current or specified output
-        Example: Park fixture 1, park DMX 101 at 128
-
-    15. unpark_fixture - Release a parked fixture/DMX
-        Example: Unpark fixture 1
-
-    16. run_macro - Execute a stored macro by ID
-        Example: Run macro 1
-
-    17. delete_object - Delete an object (DESTRUCTIVE, requires confirmation)
-        Example: Delete cue 5, delete group 3
-
+    --- Programming ---
+    13. create_fixture_group - Select fixtures and save as a named group
+    14. store_current_cue - Store programmer into a cue (DESTRUCTIVE)
+    15. store_new_preset - Store programmer as a preset (DESTRUCTIVE)
+    16. store_object - Store generic objects: macros, effects, worlds (DESTRUCTIVE)
+    17. set_node_property - Set a property on a node via tree path
     18. copy_or_move_object - Copy or move objects between slots
-        Example: Copy group 1 to 5, move macro 3 to 10
+    19. delete_object - Delete any object (DESTRUCTIVE)
+    20. run_macro - Execute a stored macro by ID
 
-    19. store_new_preset - Store programmer values as a preset (DESTRUCTIVE)
-        Example: Store color preset 5
+    --- Assignment & Layout ---
+    21. assign_object - Assign objects, functions, fades, or layout positions (DESTRUCTIVE)
+    22. label_or_appearance - Label or style objects (DESTRUCTIVE)
+    23. edit_object - Edit, cut, or paste objects (cut/paste DESTRUCTIVE)
+    24. remove_content - Remove content from objects (DESTRUCTIVE)
+
+    --- Info & Queries ---
+    25. get_object_info - Query info on any object
+    26. query_object_list - List cues, groups, presets, attributes, messages
+    27. manage_variable - Set or add to console variables (global/user)
+    28. send_raw_command - Send any MA command directly (safety-gated)
+
+    SAFETY: DESTRUCTIVE tools require confirm_destructive=True.
     """,
 )
 
@@ -1236,6 +1258,690 @@ async def store_new_preset(
     return json.dumps({
         "command_sent": cmd,
         "raw_response": raw_response,
+    }, indent=2)
+
+
+# ============================================================
+# New Composite Tools (Tools 20-27)
+# ============================================================
+
+
+@mcp.tool()
+@_handle_errors
+async def query_object_list(
+    object_type: str | None = None,
+    object_id: int | str | None = None,
+    end: int | None = None,
+    sequence_id: int | None = None,
+    preset_type: str | int | None = None,
+    filename: str | None = None,
+    condition: str | None = None,
+) -> str:
+    """
+    List objects from the show file by type — cues, groups, presets, etc.
+
+    Sends typed `list <type>` commands with type-specific options.
+    Different from list_console_destination (which lists at the current
+    navigation location). This tool queries named object pools directly.
+
+    Args:
+        object_type: Object type to list. Typed shortcuts:
+            "cue", "group", "preset", "attribute", "messages".
+            Or any generic type (e.g. "sequence", "macro", "executor").
+            If omitted, lists all objects at the default scope.
+        object_id: Optional object ID to list a specific item
+        end: Optional end ID for range listing (e.g. cue 1 thru 10)
+        sequence_id: Sequence to list cues from (only for object_type="cue")
+        preset_type: Preset type name or number (only for object_type="preset",
+            e.g. "color", "position", "4")
+        filename: Optional filename to export the list output
+        condition: Optional filter condition (for "messages" or generic types)
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - List all cues: object_type="cue"
+        - List cues in sequence 2: object_type="cue", sequence_id=2
+        - List groups: object_type="group"
+        - List color presets: object_type="preset", preset_type="color"
+        - List attributes: object_type="attribute"
+    """
+    otype = (object_type or "").lower()
+
+    if otype == "cue":
+        cmd = build_list_cue(
+            cue_id=object_id, end=end, sequence_id=sequence_id,
+            filename=filename,
+        )
+    elif otype == "group":
+        cmd = build_list_group(
+            group_id=object_id, end=end, filename=filename,
+        )
+    elif otype == "preset":
+        cmd = build_list_preset(
+            preset_type=preset_type, preset_id=object_id,
+            end=end, filename=filename,
+        )
+    elif otype == "attribute":
+        cmd = build_list_attribute(filename=filename)
+    elif otype == "messages":
+        cmd = build_list_messages(condition=condition, filename=filename)
+    else:
+        cmd = build_list_objects(
+            object_type=object_type, object_id=object_id,
+            end=end, filename=filename, condition=condition,
+        )
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def playback_action(
+    action: str,
+    object_type: str | None = None,
+    object_id: int | None = None,
+    cue_id: int | float | None = None,
+    end: int | None = None,
+    cue_mode: str | None = None,
+    executor: int | None = None,
+    sequence: int | None = None,
+) -> str:
+    """
+    Execute playback operations — go, go back, goto, fast forward/back, etc.
+
+    Full-featured playback control with cue_mode and executor targeting.
+    Coexists with execute_sequence (which uses legacy go_sequence/pause_sequence).
+
+    Args:
+        action: Playback action to perform:
+            "go" — fire the next cue (optionally on a specific executor/sequence)
+            "go_back" — fire the previous cue
+            "goto" — jump to a specific cue (requires cue_id)
+            "fast_forward" — skip forward (>>>)
+            "fast_back" — skip backward (<<<)
+            "def_go" — go on the selected executor (go+)
+            "def_pause" — pause the selected executor
+        object_type: Object type for go/go_back (e.g. "executor", "sequence")
+        object_id: Object ID for go/go_back
+        cue_id: Target cue number (required for "goto")
+        end: End ID for range (go/go_back)
+        cue_mode: Cue execution mode: "normal", "assert", "xassert", "release"
+        executor: Executor ID for goto/fast_forward/fast_back
+        sequence: Sequence ID for goto/fast_forward/fast_back
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - Go on executor 1: action="go", object_type="executor", object_id=1
+        - Go back: action="go_back"
+        - Goto cue 5: action="goto", cue_id=5
+        - Goto cue 3 on sequence 2: action="goto", cue_id=3, sequence=2
+        - Fast forward: action="fast_forward"
+        - Go on selected executor: action="def_go"
+    """
+    action = action.lower()
+
+    if action == "go":
+        cmd = build_go(
+            object_type=object_type, object_id=object_id,
+            end=end, cue_mode=cue_mode,
+        )
+    elif action == "go_back":
+        cmd = build_go_back(
+            object_type=object_type, object_id=object_id,
+            end=end, cue_mode=cue_mode,
+        )
+    elif action == "goto":
+        if cue_id is None:
+            return json.dumps({
+                "error": "goto action requires cue_id to be specified.",
+            }, indent=2)
+        cmd = build_goto(
+            cue_id, executor=executor, sequence=sequence,
+            cue_mode=cue_mode,
+        )
+    elif action == "fast_forward":
+        cmd = build_go_fast_forward(executor=executor, sequence=sequence)
+    elif action == "fast_back":
+        cmd = build_go_fast_back(executor=executor, sequence=sequence)
+    elif action == "def_go":
+        cmd = build_def_go_forward()
+    elif action == "def_pause":
+        cmd = build_def_go_pause()
+    else:
+        return json.dumps({
+            "error": (
+                f"Unknown action: {action}. Use 'go', 'go_back', 'goto', "
+                f"'fast_forward', 'fast_back', 'def_go', or 'def_pause'."
+            ),
+        }, indent=2)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def manage_variable(
+    action: str,
+    scope: str,
+    var_name: str,
+    value: int | float | str | None = None,
+    input_dialog: bool = False,
+) -> str:
+    """
+    Set or add to console variables (global or user-scoped).
+
+    Variables are named values stored on the console that can be used in
+    macros and command line expressions.
+
+    Args:
+        action: "set" to assign a value, "add" to increment by a value
+        scope: "global" for system variables, "user" for user-scoped variables
+        var_name: Variable name (e.g. "myvar", "speed", "counter")
+        value: Value to set or add. Required for "add", optional for "set"
+            (if omitted with set + input_dialog, shows input dialog)
+        input_dialog: If True with action="set", shows an input dialog
+            on the console for the user to enter a value
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - Set global var: action="set", scope="global", var_name="myvar", value=42
+        - Set user var: action="set", scope="user", var_name="speed", value=100
+        - Add to global: action="add", scope="global", var_name="counter", value=1
+        - Show input dialog: action="set", scope="user", var_name="name", input_dialog=True
+    """
+    action = action.lower()
+    scope = scope.lower()
+
+    if action == "set":
+        if scope == "global":
+            cmd = build_set_var(var_name, value, input_dialog=input_dialog)
+        elif scope == "user":
+            cmd = build_set_user_var(var_name, value, input_dialog=input_dialog)
+        else:
+            return json.dumps({
+                "error": f"Unknown scope: {scope}. Use 'global' or 'user'.",
+            }, indent=2)
+    elif action == "add":
+        if value is None:
+            return json.dumps({
+                "error": "add action requires a value.",
+            }, indent=2)
+        if scope == "global":
+            cmd = build_add_var(var_name, value)
+        elif scope == "user":
+            cmd = build_add_user_var(var_name, value)
+        else:
+            return json.dumps({
+                "error": f"Unknown scope: {scope}. Use 'global' or 'user'.",
+            }, indent=2)
+    else:
+        return json.dumps({
+            "error": f"Unknown action: {action}. Use 'set' or 'add'.",
+        }, indent=2)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def label_or_appearance(
+    action: str,
+    object_type: str,
+    object_id: int | str,
+    name: str | None = None,
+    end: int | None = None,
+    preset_type: str | None = None,
+    confirm_destructive: bool = False,
+    color: str | None = None,
+    red: int | None = None,
+    green: int | None = None,
+    blue: int | None = None,
+    hue: int | None = None,
+    saturation: int | None = None,
+    brightness: int | None = None,
+    reset: bool = False,
+    source_type: str | None = None,
+    source_id: int | str | None = None,
+) -> str:
+    """
+    Label or set the appearance of console objects.
+
+    SAFETY: This is a DESTRUCTIVE operation. Requires confirm_destructive=True.
+
+    Args:
+        action: "label" to set a name, "appearance" to set visual styling
+        object_type: Object type (e.g. "group", "sequence", "cue", "preset")
+        object_id: Object ID
+        name: Name to assign (required for action="label")
+        end: End ID for range labeling (e.g. group 1 thru 5)
+        preset_type: For labeling presets, the preset type (e.g. "color", "position").
+            When set, uses the specialized label_preset builder.
+        confirm_destructive: Must be True to execute (safety gate)
+        color: Hex color string for appearance (e.g. "FF0000")
+        red: Red component (0-255) for appearance
+        green: Green component (0-255) for appearance
+        blue: Blue component (0-255) for appearance
+        hue: Hue value for appearance
+        saturation: Saturation value for appearance
+        brightness: Brightness value for appearance
+        reset: Reset appearance to default
+        source_type: Copy appearance from this object type
+        source_id: Copy appearance from this object ID
+
+    Returns:
+        str: JSON with command_sent, raw_response, or block info.
+
+    Examples:
+        - Label group 3: action="label", object_type="group", object_id=3, name="Front Wash"
+        - Label color preset 1: action="label", object_type="preset", object_id=1,
+          preset_type="color", name="Red"
+        - Set group appearance: action="appearance", object_type="group", object_id=1,
+          color="FF0000"
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "command_sent": None,
+            "blocked": True,
+            "error": "Label/Appearance is a DESTRUCTIVE operation. Set confirm_destructive=True to proceed.",
+        }, indent=2)
+
+    action = action.lower()
+
+    if action == "label":
+        if name is None:
+            return json.dumps({
+                "error": "label action requires 'name' to be specified.",
+            }, indent=2)
+        if preset_type is not None:
+            cmd = build_label_preset(preset_type, object_id, name)
+        else:
+            cmd = build_label(object_type, object_id, name, end=end)
+    elif action == "appearance":
+        cmd = build_appearance(
+            object_type, object_id, end=end,
+            source_type=source_type, source_id=source_id,
+            reset=reset, color=color,
+            red=red, green=green, blue=blue,
+            hue=hue, saturation=saturation, brightness=brightness,
+        )
+    else:
+        return json.dumps({
+            "error": f"Unknown action: {action}. Use 'label' or 'appearance'.",
+        }, indent=2)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def assign_object(
+    mode: str,
+    confirm_destructive: bool = False,
+    source_type: str | None = None,
+    source_id: int | str | None = None,
+    target_type: str | None = None,
+    target_id: int | str | None = None,
+    function: str | None = None,
+    fade_time: float | None = None,
+    cue_id: int | None = None,
+    sequence_id: int | None = None,
+    layout_id: int | None = None,
+    x: int | None = None,
+    y: int | None = None,
+    noconfirm: bool = False,
+) -> str:
+    """
+    Assign objects, functions, fades, or layout positions on the console.
+
+    SAFETY: This is a DESTRUCTIVE operation. Requires confirm_destructive=True.
+
+    Args:
+        mode: Assignment mode:
+            "assign" — assign source object to target (e.g. sequence to executor)
+            "function" — assign a function to an executor (e.g. Toggle, Flash)
+            "fade" — assign a fade time to a cue
+            "layout" — assign an object to a layout position
+            "empty" — deactivate an executor (assign empty function)
+            "temp_fader" — assign temp fader function to an executor
+        confirm_destructive: Must be True to execute (safety gate)
+        source_type: Source object type (for "assign" and "layout" modes)
+        source_id: Source object ID (for "assign" and "layout" modes)
+        target_type: Target object type (for "assign", "function", "empty", "temp_fader")
+        target_id: Target object ID
+        function: Function name for "function" mode (e.g. "Toggle", "Flash", "Go")
+        fade_time: Fade time in seconds for "fade" mode
+        cue_id: Cue ID for "fade" mode
+        sequence_id: Sequence ID for "fade" mode
+        layout_id: Layout ID for "layout" mode
+        x: X position for "layout" mode
+        y: Y position for "layout" mode
+        noconfirm: Skip console confirmation dialog
+
+    Returns:
+        str: JSON with command_sent, raw_response, or block info.
+
+    Examples:
+        - Assign sequence 1 to executor 6: mode="assign", source_type="sequence",
+          source_id=1, target_type="executor", target_id=6
+        - Assign Toggle to executor 101: mode="function", function="Toggle",
+          target_type="executor", target_id=101
+        - Assign fade 3s to cue 5: mode="fade", fade_time=3, cue_id=5
+        - Assign group to layout: mode="layout", source_type="group", source_id=1,
+          layout_id=1, x=5, y=2
+        - Empty executor 1: mode="empty", target_type="executor", target_id=1
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "command_sent": None,
+            "blocked": True,
+            "error": "Assign is a DESTRUCTIVE operation. Set confirm_destructive=True to proceed.",
+        }, indent=2)
+
+    mode = mode.lower()
+
+    if mode == "assign":
+        if source_type is None or source_id is None:
+            return json.dumps({
+                "error": "assign mode requires source_type and source_id.",
+            }, indent=2)
+        cmd = build_assign(
+            source_type, source_id,
+            target_type=target_type, target_id=target_id,
+            noconfirm=noconfirm,
+        )
+    elif mode == "function":
+        if function is None or target_type is None or target_id is None:
+            return json.dumps({
+                "error": "function mode requires function, target_type, and target_id.",
+            }, indent=2)
+        cmd = build_assign_function(function, target_type, target_id)
+    elif mode == "fade":
+        if fade_time is None or cue_id is None:
+            return json.dumps({
+                "error": "fade mode requires fade_time and cue_id.",
+            }, indent=2)
+        cmd = build_assign_fade(fade_time, cue_id, sequence_id=sequence_id)
+    elif mode == "layout":
+        if source_type is None or source_id is None or layout_id is None:
+            return json.dumps({
+                "error": "layout mode requires source_type, source_id, and layout_id.",
+            }, indent=2)
+        cmd = build_assign_to_layout(
+            source_type, source_id, layout_id, x=x, y=y,
+        )
+    elif mode == "empty":
+        if target_type is None or target_id is None:
+            return json.dumps({
+                "error": "empty mode requires target_type and target_id.",
+            }, indent=2)
+        cmd = build_assign_function("empty", target_type, target_id)
+    elif mode == "temp_fader":
+        if target_type is None or target_id is None:
+            return json.dumps({
+                "error": "temp_fader mode requires target_type and target_id.",
+            }, indent=2)
+        cmd = build_assign_function("tempfader", target_type, target_id)
+    else:
+        return json.dumps({
+            "error": (
+                f"Unknown mode: {mode}. Use 'assign', 'function', 'fade', "
+                f"'layout', 'empty', or 'temp_fader'."
+            ),
+        }, indent=2)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def edit_object(
+    action: str,
+    object_type: str | None = None,
+    object_id: int | str | None = None,
+    target_id: int | str | None = None,
+    end: int | str | None = None,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Edit, cut, or paste objects in the show.
+
+    - edit: Opens an object for editing (SAFE_WRITE)
+    - cut: Removes an object and places it on the clipboard (DESTRUCTIVE)
+    - paste: Places clipboard contents at a target location (DESTRUCTIVE)
+
+    SAFETY: cut and paste are DESTRUCTIVE and require confirm_destructive=True.
+    edit does not require confirmation.
+
+    Args:
+        action: "edit", "cut", or "paste"
+        object_type: Object type (e.g. "preset", "cue", "group")
+        object_id: Object ID (for edit and cut)
+        target_id: Target ID for paste destination
+        end: End ID for range operations
+        confirm_destructive: Must be True for cut/paste (safety gate)
+
+    Returns:
+        str: JSON with command_sent, raw_response, or block info.
+
+    Examples:
+        - Edit cue 1: action="edit", object_type="cue", object_id=1
+        - Cut preset 4.1: action="cut", object_type="preset", object_id="4.1"
+        - Paste to group 5: action="paste", object_type="group", target_id=5
+    """
+    action = action.lower()
+
+    if action in ("cut", "paste") and not confirm_destructive:
+        return json.dumps({
+            "command_sent": None,
+            "blocked": True,
+            "error": f"{action.title()} is a DESTRUCTIVE operation. Set confirm_destructive=True to proceed.",
+        }, indent=2)
+
+    if action == "edit":
+        cmd = build_edit(object_type=object_type, object_id=object_id, end=end)
+    elif action == "cut":
+        if object_type is None or object_id is None:
+            return json.dumps({
+                "error": "cut requires object_type and object_id.",
+            }, indent=2)
+        cmd = build_cut(object_type, object_id, end=end)
+    elif action == "paste":
+        cmd = build_paste(object_type, target_id)
+    else:
+        return json.dumps({
+            "error": f"Unknown action: {action}. Use 'edit', 'cut', or 'paste'.",
+        }, indent=2)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def remove_content(
+    object_type: str,
+    object_id: int | str | None = None,
+    end: int | None = None,
+    if_filter: str | None = None,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Remove content from objects (fixtures from groups, effects, preset types, etc.).
+
+    Unlike delete (which removes the object itself), remove takes content out of
+    an object. For example, removing a fixture from a group, or removing an effect
+    from a cue.
+
+    SAFETY: This is a DESTRUCTIVE operation. Requires confirm_destructive=True.
+
+    Args:
+        object_type: What to remove. Special types:
+            "selection" — remove the current selection
+            "fixture" — remove a fixture (from a group, cue, etc.)
+            "effect" — remove an effect
+            "presettype" — remove a preset type from the programmer
+            Or any generic type for the generic remove command.
+        object_id: Object ID to remove (not needed for "selection")
+        end: End ID for range removal
+        if_filter: Conditional filter (e.g. "PresetType 1")
+        confirm_destructive: Must be True to execute (safety gate)
+
+    Returns:
+        str: JSON with command_sent, raw_response, or block info.
+
+    Examples:
+        - Remove selection: object_type="selection"
+        - Remove fixture 1: object_type="fixture", object_id=1
+        - Remove fixture with filter: object_type="fixture", object_id=1,
+          if_filter="PresetType 1"
+        - Remove effect 1: object_type="effect", object_id=1
+        - Remove preset type: object_type="presettype", object_id="position"
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "command_sent": None,
+            "blocked": True,
+            "error": "Remove is a DESTRUCTIVE operation. Set confirm_destructive=True to proceed.",
+        }, indent=2)
+
+    otype = object_type.lower()
+
+    if otype == "selection":
+        cmd = build_remove_selection()
+    elif otype == "fixture":
+        if object_id is None:
+            return json.dumps({
+                "error": "fixture removal requires object_id.",
+            }, indent=2)
+        cmd = build_remove_fixture(object_id, end=end, if_filter=if_filter)
+    elif otype == "effect":
+        if object_id is None:
+            return json.dumps({
+                "error": "effect removal requires object_id.",
+            }, indent=2)
+        cmd = build_remove_effect(object_id, end=end)
+    elif otype == "presettype":
+        if object_id is None:
+            return json.dumps({
+                "error": "presettype removal requires object_id (the preset type name or number).",
+            }, indent=2)
+        cmd = build_remove_preset_type(object_id, if_filter=if_filter)
+    else:
+        cmd = build_remove(
+            object_type=object_type, object_id=object_id,
+            end=end, if_filter=if_filter,
+        )
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def store_object(
+    object_type: str,
+    object_id: int | str,
+    name: str | None = None,
+    merge: bool = False,
+    overwrite: bool = False,
+    noconfirm: bool = False,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Store (create) a generic object in the show — macros, effects, worlds, etc.
+
+    For cues, use store_current_cue. For presets, use store_new_preset.
+    For groups, use create_fixture_group. This tool handles everything else.
+
+    SAFETY: This is a DESTRUCTIVE operation. Requires confirm_destructive=True.
+
+    Args:
+        object_type: Object type to store (e.g. "macro", "effect", "world",
+            "sequence", "executor", "timecode")
+        object_id: Object ID number or slot
+        name: Optional name for the stored object
+        merge: Merge into existing object if present
+        overwrite: Overwrite existing object if present
+        noconfirm: Skip console confirmation dialog
+        confirm_destructive: Must be True to execute (safety gate)
+
+    Returns:
+        str: JSON with command_sent, raw_response, or block info.
+
+    Examples:
+        - Store macro 5: object_type="macro", object_id=5
+        - Store effect 1 named "Rainbow": object_type="effect", object_id=1, name="Rainbow"
+        - Overwrite sequence 3: object_type="sequence", object_id=3, overwrite=True
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "command_sent": None,
+            "blocked": True,
+            "error": "Store is a DESTRUCTIVE operation. Set confirm_destructive=True to proceed.",
+        }, indent=2)
+
+    cmd = build_store_generic(
+        object_type, object_id, name,
+        merge=merge, overwrite=overwrite, noconfirm=noconfirm,
+    )
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+        "blocked": False,
     }, indent=2)
 
 

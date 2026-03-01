@@ -23,8 +23,8 @@ uv run python -m src.server  # starts MCP server (stdio transport)
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  MCP Server Layer              src/server.py             │
-│  20 tools: Navigation (4), Lighting Control (7),         │
-│    Programming (7), Info & Raw Access (2)                 │
+│  28 tools: Navigation (4), Lighting (8), Programming (8),│
+│    Assignment (4), Info & Queries (4)                     │
 │  Safety gate: classifies commands before sending         │
 └────────────────────────┬─────────────────────────────────┘
                          │
@@ -84,7 +84,7 @@ LOG_LEVEL=INFO             # default: INFO
 
 ## MCP Tools
 
-The server exposes 20 tools to MCP clients, grouped by category:
+The server exposes 28 tools to MCP clients, grouped by category:
 
 ### Navigation & Inspection
 
@@ -115,7 +115,8 @@ list            → enumerate objects at current destination
 | `set_intensity` | Set dimmer level on fixtures, groups, or channels |
 | `set_attribute` | Set attribute values (Pan, Tilt, Zoom, etc.) on fixtures/groups |
 | `apply_preset` | Apply a stored preset (color, position, gobo, beam, etc.) |
-| `execute_sequence` | Control sequence playback: go, pause, or goto cue |
+| `execute_sequence` | Legacy sequence playback: go, pause, or goto cue |
+| `playback_action` | Full playback control: go, go_back, goto, fast_forward, fast_back, def_go, def_pause |
 | `clear_programmer` | Clear programmer state (all, selection, active, or sequential) |
 | `park_fixture` | Park a fixture/channel at its current or a specified value |
 | `unpark_fixture` | Release a park lock on a fixture/channel |
@@ -127,16 +128,28 @@ list            → enumerate objects at current destination
 | `create_fixture_group` | Select a range of fixtures and save as a named group |
 | `store_current_cue` | Store programmer state into a cue (**DESTRUCTIVE**) |
 | `store_new_preset` | Store programmer state as a new preset (dimmer, color, position, etc.) |
+| `store_object` | Store generic objects — macros, effects, worlds, etc. (**DESTRUCTIVE**) |
 | `set_node_property` | Set a property on any node via dot-separated tree path |
 | `copy_or_move_object` | Copy or move objects between slots (with merge/overwrite options) |
 | `delete_object` | Delete any object by type and ID (**DESTRUCTIVE**) |
 | `run_macro` | Execute a stored macro by ID |
 
-### Info & Raw Access
+### Assignment & Layout
+
+| Tool | Description |
+|------|-------------|
+| `assign_object` | Assign objects, functions, fades, or layout positions (**DESTRUCTIVE**) |
+| `label_or_appearance` | Label or set visual appearance of objects (**DESTRUCTIVE**) |
+| `edit_object` | Edit, cut, or paste objects (cut/paste **DESTRUCTIVE**) |
+| `remove_content` | Remove content from objects — fixtures, effects, preset types (**DESTRUCTIVE**) |
+
+### Info & Queries
 
 | Tool | Description |
 |------|-------------|
 | `get_object_info` | Query info on any object (fixture, group, sequence, etc.) |
+| `query_object_list` | List cues, groups, presets, attributes, or messages from the show |
+| `manage_variable` | Set or add to console variables (global or user-scoped) |
 | `send_raw_command` | Send any MA command directly (safety-gated, see below) |
 
 ### Claude Desktop Registration
@@ -550,7 +563,7 @@ gma2-mcp-telnet/
 ├── connect.sh                      # Interactive Telnet session via expect
 ├── Makefile                        # Shortcuts: server, log, test
 ├── src/
-│   ├── server.py                   # MCP server (FastMCP, 20 tools)
+│   ├── server.py                   # MCP server (FastMCP, 28 tools)
 │   ├── telnet_client.py            # Async Telnet client (telnetlib3)
 │   ├── navigation.py               # Navigation API (cd + list + parsing)
 │   ├── prompt_parser.py            # Telnet prompt & list output parser
