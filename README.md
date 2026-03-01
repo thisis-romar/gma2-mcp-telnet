@@ -23,8 +23,8 @@ uv run python -m src.server  # starts MCP server (stdio transport)
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  MCP Server Layer              src/server.py             │
-│  13 tools: Navigation (4), Lighting Control (4),         │
-│    Programming (3), Info & Raw Access (2)                 │
+│  20 tools: Navigation (4), Lighting Control (7),         │
+│    Programming (7), Info & Raw Access (2)                 │
 │  Safety gate: classifies commands before sending         │
 └────────────────────────┬─────────────────────────────────┘
                          │
@@ -84,7 +84,7 @@ LOG_LEVEL=INFO             # default: INFO
 
 ## MCP Tools
 
-The server exposes 13 tools to MCP clients, grouped by category:
+The server exposes 20 tools to MCP clients, grouped by category:
 
 ### Navigation & Inspection
 
@@ -113,9 +113,12 @@ list            → enumerate objects at current destination
 | Tool | Description |
 |------|-------------|
 | `set_intensity` | Set dimmer level on fixtures, groups, or channels |
+| `set_attribute` | Set attribute values (Pan, Tilt, Zoom, etc.) on fixtures/groups |
 | `apply_preset` | Apply a stored preset (color, position, gobo, beam, etc.) |
 | `execute_sequence` | Control sequence playback: go, pause, or goto cue |
 | `clear_programmer` | Clear programmer state (all, selection, active, or sequential) |
+| `park_fixture` | Park a fixture/channel at its current or a specified value |
+| `unpark_fixture` | Release a park lock on a fixture/channel |
 
 ### Programming
 
@@ -123,7 +126,11 @@ list            → enumerate objects at current destination
 |------|-------------|
 | `create_fixture_group` | Select a range of fixtures and save as a named group |
 | `store_current_cue` | Store programmer state into a cue (**DESTRUCTIVE**) |
+| `store_new_preset` | Store programmer state as a new preset (dimmer, color, position, etc.) |
 | `set_node_property` | Set a property on any node via dot-separated tree path |
+| `copy_or_move_object` | Copy or move objects between slots (with merge/overwrite options) |
+| `delete_object` | Delete any object by type and ID (**DESTRUCTIVE**) |
+| `run_macro` | Execute a stored macro by ID |
 
 ### Info & Raw Access
 
@@ -543,7 +550,7 @@ gma2-mcp-telnet/
 ├── connect.sh                      # Interactive Telnet session via expect
 ├── Makefile                        # Shortcuts: server, log, test
 ├── src/
-│   ├── server.py                   # MCP server (FastMCP, 13 tools)
+│   ├── server.py                   # MCP server (FastMCP, 20 tools)
 │   ├── telnet_client.py            # Async Telnet client (telnetlib3)
 │   ├── navigation.py               # Navigation API (cd + list + parsing)
 │   ├── prompt_parser.py            # Telnet prompt & list output parser
@@ -556,7 +563,7 @@ gma2-mcp-telnet/
 │       ├── helpers.py              # Internal option builder
 │       ├── objects/                # Object keywords (9 modules)
 │       └── functions/              # Function keywords (15 modules)
-├── tests/                          # 592 tests (pytest + pytest-asyncio)
+├── tests/                          # 634 tests (pytest + pytest-asyncio)
 ├── vscode-mcp-provider/            # VS Code MCP extension
 ├── doc/
 │   └── 2024-09-30_grandMA2_User_Manual_v3-9.pdf

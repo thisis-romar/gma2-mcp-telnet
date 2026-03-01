@@ -619,3 +619,398 @@ class TestSetNodePropertyTool:
 
         assert data["success"] is False
         assert data["error"] == "Verification failed"
+
+
+class TestSetAttributeTool:
+    """Tests for the set_attribute MCP tool."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_set_pan(self, mock_get_client):
+        """Test setting Pan attribute."""
+        from src.server import set_attribute
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await set_attribute(attribute_name="Pan", value=120)
+        data = json.loads(result)
+
+        assert data["commands_sent"] == ['attribute "Pan" at 120']
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_set_attribute_with_group(self, mock_get_client):
+        """Test setting attribute after selecting a group."""
+        from src.server import set_attribute
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await set_attribute(attribute_name="Tilt", value=50, group_id=2)
+        data = json.loads(result)
+
+        calls = mock_client.send_command_with_response.call_args_list
+        assert calls[0][0][0] == "group 2"
+        assert calls[1][0][0] == 'attribute "Tilt" at 50'
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_set_attribute_with_fixture_range(self, mock_get_client):
+        """Test setting attribute after selecting fixtures."""
+        from src.server import set_attribute
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await set_attribute(
+            attribute_name="Zoom", value=80, fixture_id=1, fixture_end=10
+        )
+        data = json.loads(result)
+
+        calls = mock_client.send_command_with_response.call_args_list
+        assert calls[0][0][0] == "selfix fixture 1 thru 10"
+        assert calls[1][0][0] == 'attribute "Zoom" at 80'
+
+
+class TestParkFixtureTool:
+    """Tests for the park_fixture and unpark_fixture MCP tools."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_park_fixture(self, mock_get_client):
+        """Test parking a fixture."""
+        from src.server import park_fixture
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await park_fixture(target="fixture 1")
+        data = json.loads(result)
+
+        assert data["command_sent"] == "park fixture 1"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_park_dmx_with_value(self, mock_get_client):
+        """Test parking DMX at a specific value."""
+        from src.server import park_fixture
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await park_fixture(target="dmx 101", value=128)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "park dmx 101 at 128"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_unpark_fixture(self, mock_get_client):
+        """Test unparking a fixture."""
+        from src.server import unpark_fixture
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await unpark_fixture(target="fixture 1")
+        data = json.loads(result)
+
+        assert data["command_sent"] == "unpark fixture 1"
+
+
+class TestRunMacroTool:
+    """Tests for the run_macro MCP tool."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_run_macro(self, mock_get_client):
+        """Test executing a macro."""
+        from src.server import run_macro
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await run_macro(macro_id=1)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "go macro 1"
+
+
+class TestDeleteObjectTool:
+    """Tests for the delete_object MCP tool."""
+
+    @pytest.mark.asyncio
+    async def test_delete_blocked_without_confirm(self):
+        """Test that delete is blocked without confirmation."""
+        from src.server import delete_object
+
+        result = await delete_object(object_type="cue", object_id=5)
+        data = json.loads(result)
+
+        assert data["blocked"] is True
+        assert "DESTRUCTIVE" in data["error"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_delete_cue_with_confirm(self, mock_get_client):
+        """Test deleting a cue with confirmation."""
+        from src.server import delete_object
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+
+        result = await delete_object(
+            object_type="cue", object_id=5, confirm_destructive=True
+        )
+        data = json.loads(result)
+
+        assert data["blocked"] is False
+        assert data["command_sent"] == "delete cue 5 /noconfirm"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_delete_group_with_confirm(self, mock_get_client):
+        """Test deleting a generic object type."""
+        from src.server import delete_object
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+
+        result = await delete_object(
+            object_type="group", object_id=3, confirm_destructive=True
+        )
+        data = json.loads(result)
+
+        assert data["blocked"] is False
+        assert "delete group 3" in data["command_sent"]
+
+
+class TestCopyOrMoveObjectTool:
+    """Tests for the copy_or_move_object MCP tool."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_copy_group(self, mock_get_client):
+        """Test copying a group."""
+        from src.server import copy_or_move_object
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+
+        result = await copy_or_move_object(
+            action="copy", object_type="group", source_id=1, target_id=5
+        )
+        data = json.loads(result)
+
+        assert data["command_sent"] == "copy group 1 at 5"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_move_macro(self, mock_get_client):
+        """Test moving a macro."""
+        from src.server import copy_or_move_object
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+
+        result = await copy_or_move_object(
+            action="move", object_type="macro", source_id=3, target_id=10
+        )
+        data = json.loads(result)
+
+        assert data["command_sent"] == "move macro 3 at 10"
+
+    @pytest.mark.asyncio
+    async def test_invalid_action(self):
+        """Test that invalid action returns error."""
+        from src.server import copy_or_move_object
+
+        result = await copy_or_move_object(
+            action="cut", object_type="group", source_id=1, target_id=5
+        )
+        data = json.loads(result)
+
+        assert "error" in data
+
+
+class TestStoreNewPresetTool:
+    """Tests for the store_new_preset MCP tool."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_store_color_preset(self, mock_get_client):
+        """Test storing a color preset."""
+        from src.server import store_new_preset
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+
+        result = await store_new_preset(preset_type="color", preset_id=5)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "store preset 2.5"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_store_preset_with_merge(self, mock_get_client):
+        """Test storing a preset with merge option."""
+        from src.server import store_new_preset
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+
+        result = await store_new_preset(
+            preset_type="position", preset_id=3, merge=True
+        )
+        data = json.loads(result)
+
+        assert data["command_sent"] == "store preset 2.3 /merge"
+
+
+class TestNavigateConsoleTool:
+    """Tests for the navigate_console MCP tool."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.navigate")
+    @patch("src.server.get_client")
+    async def test_navigate_to_root(self, mock_get_client, mock_navigate):
+        """Test navigating to root."""
+        from src.server import navigate_console
+        from src.prompt_parser import ConsolePrompt
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        mock_result = MagicMock()
+        mock_result.command_sent = "cd /"
+        mock_result.raw_response = "[Root]>"
+        mock_result.success = True
+        mock_result.parsed_prompt = ConsolePrompt(
+            raw_response="[Root]>",
+            prompt_line="[Root]>",
+            location="Root",
+            object_type="Root",
+            object_id=None,
+        )
+        mock_navigate.return_value = mock_result
+
+        result = await navigate_console(destination="/")
+        data = json.loads(result)
+
+        assert data["command_sent"] == "cd /"
+        assert data["success"] is True
+        assert data["parsed_prompt"]["location"] == "Root"
+
+    @pytest.mark.asyncio
+    @patch("src.server.navigate")
+    @patch("src.server.get_client")
+    async def test_navigate_with_object_id(self, mock_get_client, mock_navigate):
+        """Test navigating with dot notation."""
+        from src.server import navigate_console
+        from src.prompt_parser import ConsolePrompt
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        mock_result = MagicMock()
+        mock_result.command_sent = "cd Group.1"
+        mock_result.raw_response = "[Group 1]>"
+        mock_result.success = True
+        mock_result.parsed_prompt = ConsolePrompt(
+            raw_response="[Group 1]>",
+            prompt_line="[Group 1]>",
+            location="Group 1",
+            object_type="Group",
+            object_id="1",
+        )
+        mock_navigate.return_value = mock_result
+
+        result = await navigate_console(destination="Group", object_id=1)
+        data = json.loads(result)
+
+        assert data["success"] is True
+        assert data["parsed_prompt"]["object_type"] == "Group"
+        assert data["parsed_prompt"]["object_id"] == "1"
+
+
+class TestGetConsoleLocationTool:
+    """Tests for the get_console_location MCP tool."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_current_location")
+    @patch("src.server.get_client")
+    async def test_get_location(self, mock_get_client, mock_get_location):
+        """Test querying current location."""
+        from src.server import get_console_location
+        from src.prompt_parser import ConsolePrompt
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        mock_result = MagicMock()
+        mock_result.command_sent = ""
+        mock_result.raw_response = "[channel]>"
+        mock_result.success = True
+        mock_result.parsed_prompt = ConsolePrompt(
+            raw_response="[channel]>",
+            prompt_line="[channel]>",
+            location="channel",
+            object_type="channel",
+            object_id=None,
+        )
+        mock_get_location.return_value = mock_result
+
+        result = await get_console_location()
+        data = json.loads(result)
+
+        assert data["success"] is True
+        assert data["parsed_prompt"]["location"] == "channel"
+
+
+class TestListConsoleDestinationTool:
+    """Tests for the list_console_destination MCP tool."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.list_destination")
+    @patch("src.server.get_client")
+    async def test_list_destination(self, mock_get_client, mock_list_dest):
+        """Test listing objects at current destination."""
+        from src.server import list_console_destination
+        from src.prompt_parser import ListEntry, ListOutput
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        mock_result = MagicMock()
+        mock_result.command_sent = "list"
+        mock_result.raw_response = "Group.1  Front Wash\nGroup.2  Back"
+        mock_result.parsed_list = ListOutput(
+            raw_response="Group.1  Front Wash\nGroup.2  Back",
+            entries=(
+                ListEntry(object_type="Group", object_id="1", name="Front Wash"),
+                ListEntry(object_type="Group", object_id="2", name="Back"),
+            ),
+        )
+        mock_list_dest.return_value = mock_result
+
+        result = await list_console_destination()
+        data = json.loads(result)
+
+        assert data["entry_count"] == 2
+        assert data["entries"][0]["object_type"] == "Group"
+        assert data["entries"][0]["name"] == "Front Wash"
+        assert data["entries"][1]["object_id"] == "2"

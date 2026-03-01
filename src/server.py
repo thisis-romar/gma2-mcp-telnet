@@ -40,6 +40,14 @@ from src.commands import (
     clear_all as build_clear_all,
     clear_selection as build_clear_selection,
     clear_active as build_clear_active,
+    park as build_park,
+    unpark as build_unpark,
+    go_macro,
+    delete as build_delete,
+    delete_cue as build_delete_cue,
+    copy as build_copy,
+    move as build_move,
+    store_preset as build_store_preset,
 )
 from src.navigation import navigate, get_current_location, list_destination, scan_indexes, set_property
 from src.vocab import RiskTier, build_v39_spec, classify_token
@@ -109,6 +117,27 @@ mcp = FastMCP(
 
     12. clear_programmer - Clear programmer state (all, selection, active)
         Example: Clear all, or just deselect fixtures
+
+    13. set_attribute - Set fixture attributes (Pan, Tilt, Zoom, etc.)
+        Example: Set Pan to 120 on group 2
+
+    14. park_fixture - Park a fixture/DMX at its current or specified output
+        Example: Park fixture 1, park DMX 101 at 128
+
+    15. unpark_fixture - Release a parked fixture/DMX
+        Example: Unpark fixture 1
+
+    16. run_macro - Execute a stored macro by ID
+        Example: Run macro 1
+
+    17. delete_object - Delete an object (DESTRUCTIVE, requires confirmation)
+        Example: Delete cue 5, delete group 3
+
+    18. copy_or_move_object - Copy or move objects between slots
+        Example: Copy group 1 to 5, move macro 3 to 10
+
+    19. store_new_preset - Store programmer values as a preset (DESTRUCTIVE)
+        Example: Store color preset 5
     """,
 )
 
@@ -899,6 +928,309 @@ async def clear_programmer(
         }, indent=2)
 
     client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def set_attribute(
+    attribute_name: str,
+    value: int | float,
+    fixture_id: int | None = None,
+    fixture_end: int | None = None,
+    group_id: int | None = None,
+) -> str:
+    """
+    Set a specific fixture attribute (Pan, Tilt, Zoom, etc.) to a value.
+
+    Controls individual fixture parameters beyond simple dimmer intensity.
+    Optionally select fixtures/group first.
+
+    Args:
+        attribute_name: Attribute name (e.g. "Pan", "Tilt", "Zoom", "Focus", "Iris")
+        value: Attribute value (typically 0-100 for percentage, or degrees for Pan/Tilt)
+        fixture_id: Optional fixture to select first (single or range start)
+        fixture_end: Optional end fixture for range selection
+        group_id: Optional group to select first
+
+    Returns:
+        str: JSON with commands_sent and raw_response.
+
+    Examples:
+        - Set Pan to 120: attribute_name="Pan", value=120
+        - Set Tilt to 50 on group 2: attribute_name="Tilt", value=50, group_id=2
+        - Set Zoom on fixtures 1-10: attribute_name="Zoom", value=80, fixture_id=1, fixture_end=10
+    """
+    commands_sent = []
+    client = await get_client()
+
+    # Optionally select fixtures or group first
+    if group_id is not None:
+        sel_cmd = f"group {group_id}"
+        await client.send_command_with_response(sel_cmd)
+        commands_sent.append(sel_cmd)
+    elif fixture_id is not None:
+        sel_cmd = select_fixture(fixture_id, fixture_end)
+        await client.send_command_with_response(sel_cmd)
+        commands_sent.append(sel_cmd)
+
+    cmd = attribute_at(attribute_name, value)
+    raw_response = await client.send_command_with_response(cmd)
+    commands_sent.append(cmd)
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def park_fixture(
+    target: str,
+    value: int | float | None = None,
+) -> str:
+    """
+    Park a fixture or DMX address at its current or specified output value.
+
+    Parking locks the output so it won't change when cues or programmer
+    values change. Useful for testing, worklights, or safety overrides.
+
+    Args:
+        target: What to park (e.g. "fixture 1", "dmx 101", "fixture 1 thru 10")
+        value: Optional output value to park at (0-255 for DMX, 0-100 for %)
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - Park fixture 1 at current output: target="fixture 1"
+        - Park DMX 101 at 128: target="dmx 101", value=128
+        - Park fixture range: target="fixture 1 thru 10"
+    """
+    client = await get_client()
+    cmd = build_park(target, at=value)
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def unpark_fixture(
+    target: str,
+) -> str:
+    """
+    Unpark a previously parked fixture or DMX address.
+
+    Releases the park lock so the output resumes following cues and
+    programmer values normally.
+
+    Args:
+        target: What to unpark (e.g. "fixture 1", "dmx 101", "fixture 1 thru 10")
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - Unpark fixture 1: target="fixture 1"
+        - Unpark DMX 101: target="dmx 101"
+    """
+    client = await get_client()
+    cmd = build_unpark(target)
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def run_macro(
+    macro_id: int,
+) -> str:
+    """
+    Execute a macro by its ID number.
+
+    Macros are stored command sequences on the console. This triggers
+    the macro to run.
+
+    Args:
+        macro_id: Macro number to execute
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - Run macro 1: macro_id=1
+        - Run macro 99: macro_id=99
+    """
+    client = await get_client()
+    cmd = go_macro(macro_id)
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def delete_object(
+    object_type: str,
+    object_id: int | str,
+    end_id: int | None = None,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Delete an object from the show.
+
+    SAFETY: This is a DESTRUCTIVE operation. Requires confirm_destructive=True.
+
+    Args:
+        object_type: Object type (e.g. "cue", "group", "preset", "fixture", "macro")
+        object_id: Object ID to delete
+        end_id: Optional end ID for range deletion (e.g. cue 1 thru 10)
+        confirm_destructive: Must be True to execute (safety gate)
+
+    Returns:
+        str: JSON with command_sent, raw_response, or block info.
+
+    Examples:
+        - Delete cue 5: object_type="cue", object_id=5, confirm_destructive=True
+        - Delete cues 1-10: object_type="cue", object_id=1, end_id=10, confirm_destructive=True
+        - Delete group 3: object_type="group", object_id=3, confirm_destructive=True
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "command_sent": None,
+            "blocked": True,
+            "error": "Delete is a DESTRUCTIVE operation. Set confirm_destructive=True to proceed.",
+        }, indent=2)
+
+    if object_type.lower() == "cue":
+        cmd = build_delete_cue(object_id, end=end_id, noconfirm=True)
+    else:
+        cmd = build_delete(object_type, object_id, end=end_id, noconfirm=True)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def copy_or_move_object(
+    action: str,
+    object_type: str,
+    source_id: int,
+    target_id: int,
+    source_end: int | None = None,
+    overwrite: bool = False,
+    merge: bool = False,
+) -> str:
+    """
+    Copy or move an object to a new location.
+
+    SAFETY: Both operations modify show data. Copy duplicates the object,
+    move relocates it (deleting the original).
+
+    Args:
+        action: "copy" or "move"
+        object_type: Object type (e.g. "group", "cue", "preset", "macro")
+        source_id: Source object ID
+        target_id: Destination object ID
+        source_end: Optional end ID for range copy/move
+        overwrite: Overwrite target if it exists (default False)
+        merge: Merge into target if it exists (default False)
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - Copy group 1 to 5: action="copy", object_type="group", source_id=1, target_id=5
+        - Move macro 3 to 10: action="move", object_type="macro", source_id=3, target_id=10
+        - Copy cue range: action="copy", object_type="cue", source_id=1, target_id=20, source_end=10
+    """
+    action = action.lower()
+
+    if action == "copy":
+        cmd = build_copy(
+            object_type, source_id, target_id,
+            end=source_end, overwrite=overwrite, merge=merge,
+        )
+    elif action == "move":
+        cmd = build_move(
+            object_type, source_id, target_id,
+            end=source_end,
+        )
+    else:
+        return json.dumps({
+            "error": f"Unknown action: {action}. Use 'copy' or 'move'.",
+        }, indent=2)
+
+    client = await get_client()
+    raw_response = await client.send_command_with_response(cmd)
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw_response,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def store_new_preset(
+    preset_type: str,
+    preset_id: int,
+    merge: bool = False,
+    overwrite: bool = False,
+) -> str:
+    """
+    Store the current programmer values as a preset.
+
+    Saves the active fixture values (from the programmer) into a preset
+    slot for later recall with apply_preset.
+
+    Preset types: "dimmer" (1), "color" (2), "position" (3), "gobo" (4),
+    "beam" (5), "focus" (6), "control" (7), "shapers" (8), "video" (9)
+
+    SAFETY: This is a STORE operation which modifies show data.
+
+    Args:
+        preset_type: Preset type name (e.g. "color", "position", "gobo")
+        preset_id: Preset number within that type
+        merge: Merge into existing preset (default False)
+        overwrite: Replace existing preset (default False)
+
+    Returns:
+        str: JSON with command_sent and raw_response.
+
+    Examples:
+        - Store color preset 5: preset_type="color", preset_id=5
+        - Merge into position preset 3: preset_type="position", preset_id=3, merge=True
+    """
+    client = await get_client()
+    cmd = build_store_preset(
+        preset_type, preset_id,
+        merge=merge, overwrite=overwrite,
+    )
     raw_response = await client.send_command_with_response(cmd)
 
     return json.dumps({
