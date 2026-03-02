@@ -22,3 +22,11 @@ node_modules/
 
 # Build output
 dist/
+
+# Data dumps / scan artifacts
+scan_output*.json
+scan_output*.jsonl
+*.progress.jsonl
+scan_full_log*.txt
+gma2_full_tree.txt
+test_cd_behavior_output.json
