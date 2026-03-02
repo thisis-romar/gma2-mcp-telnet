@@ -12,12 +12,11 @@ grandMA2 supports these CD forms:
   cd [object-type].[object-id]  -> Navigate by object type and ID
 """
 
-from typing import Optional, Union
 
 
 def changedest(
     destination: str,
-    object_id: Optional[Union[int, str]] = None,
+    object_id: int | str | None = None,
 ) -> str:
     """
     Build a ChangeDest (cd) command string.

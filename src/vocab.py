@@ -14,15 +14,13 @@ Files
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-from typing import Mapping, Optional, Sequence, Set
-
 import json
 import logging
 import os
 import re
-
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from enum import StrEnum
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +61,7 @@ def _load_keywords_from_json(path: str) -> list[str]:
             "Ensure grandMA2_v3_9_telnet_keyword_vocabulary.json is present "
             "alongside vocab.py in the src/ directory."
         )
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         payload = json.load(f)
     return list(payload.get("keywords", []))
 
@@ -72,7 +70,7 @@ def _load_keywords_from_json(path: str) -> list[str]:
 # Safety tiers (middleware hooks)
 # =============================================================================
 
-class RiskTier(str, Enum):
+class RiskTier(StrEnum):
     SAFE_READ = "SAFE_READ"
     SAFE_WRITE = "SAFE_WRITE"
     DESTRUCTIVE = "DESTRUCTIVE"
@@ -83,7 +81,7 @@ class RiskTier(str, Enum):
 # Keyword categories (coarse classification)
 # =============================================================================
 
-class KeywordKind(str, Enum):
+class KeywordKind(StrEnum):
     KEYWORD = "KEYWORD"
     SPECIAL_CHAR_ENTRY = "SPECIAL_CHAR"
     PUNCT_TOKEN = "PUNCT_TOKEN"
@@ -108,7 +106,7 @@ class VocabSpec:
     Full vocabulary + overlays.
     """
     # Canonical keyword presence (from MA "All keywords")
-    canonical_keywords: Set[str]  # stored in normalized form
+    canonical_keywords: set[str]  # stored in normalized form
 
     # Normalized -> canonical spelling map for exact round-tripping
     normalized_to_canonical: Mapping[str, str]
@@ -124,9 +122,9 @@ class VocabSpec:
     list_option_discovery: str
 
     # Safety tiers (canonical spellings)
-    safe_read: Set[str]
-    safe_write: Set[str]
-    destructive: Set[str]
+    safe_read: set[str]
+    safe_write: set[str]
+    destructive: set[str]
 
 
 # =============================================================================
@@ -217,7 +215,7 @@ class ResolvedToken:
     raw: str
     normalized: str
     kind: KeywordKind
-    canonical: Optional[str]
+    canonical: str | None
     risk: RiskTier
 
 
@@ -301,8 +299,8 @@ def _risk_for_canonical(canonical: str, spec: VocabSpec) -> RiskTier:
 class ChangeDestOp:
     """Parsed ChangeDest intent. (Does not execute anything.)"""
     mode: str  # ROOT | UP_ONE_LEVEL | INDEX | NAME | OBJECT | UNKNOWN
-    arg1: Optional[str] = None
-    arg2: Optional[str] = None
+    arg1: str | None = None
+    arg2: str | None = None
 
 
 def parse_changedest(args: Sequence[str], spec: VocabSpec) -> ChangeDestOp:
@@ -335,7 +333,7 @@ def parse_changedest(args: Sequence[str], spec: VocabSpec) -> ChangeDestOp:
 @dataclass(frozen=True)
 class ListOp:
     """Parsed List intent. (Does not execute anything.)"""
-    object_list: Optional[str]
+    object_list: str | None
     options: Mapping[str, str]
     discovery: bool
 

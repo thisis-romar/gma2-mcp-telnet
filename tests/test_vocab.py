@@ -5,16 +5,14 @@ Tests for grandMA2 Vocabulary & Safety-Tier Classification Module
 import pytest
 
 from src.vocab import (
-    RiskTier,
     KeywordKind,
-    ResolvedToken,
+    RiskTier,
+    _load_keywords_from_json,
+    _norm_token,
     build_v39_spec,
     classify_token,
     parse_changedest,
     parse_list,
-    _norm_token,
-    _kind_for_normalized,
-    _load_keywords_from_json,
 )
 
 

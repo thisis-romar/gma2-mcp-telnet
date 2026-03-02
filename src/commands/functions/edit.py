@@ -11,10 +11,8 @@ Included functions:
 - Remove: remove, remove_selection, remove_preset_type, remove_fixture, remove_effect
 """
 
-from typing import List, Optional, Union
 
 from ..constants import PRESET_TYPES
-
 
 # ============================================================================
 # EDIT FUNCTION KEYWORD
@@ -22,10 +20,10 @@ from ..constants import PRESET_TYPES
 
 
 def edit(
-    object_type: Optional[str] = None,
-    object_id: Optional[Union[int, str, List[int]]] = None,
+    object_type: str | None = None,
+    object_id: int | str | list[int] | None = None,
     *,
-    end: Optional[int] = None,
+    end: int | None = None,
     noconfirm: bool = False,
 ) -> str:
     """
@@ -89,9 +87,9 @@ def edit(
 
 def cut(
     object_type: str,
-    object_id: Union[int, str, List[Union[int, str]]],
+    object_id: int | str | list[int | str],
     *,
-    end: Optional[Union[int, str]] = None,
+    end: int | str | None = None,
 ) -> str:
     """
     Construct a Cut command to specify source objects for a two-step move action.
@@ -137,8 +135,8 @@ def cut(
 
 
 def paste(
-    object_type_or_id: Optional[Union[str, int]] = None,
-    target_id: Optional[Union[int, str]] = None,
+    object_type_or_id: str | int | None = None,
+    target_id: int | str | None = None,
 ) -> str:
     """
     Construct a Paste command to paste copied content or move cut objects.
@@ -183,15 +181,15 @@ def paste(
 
 def copy(
     object_type: str,
-    object_id: Union[int, List[int]],
-    target: Optional[Union[int, List[int]]] = None,
+    object_id: int | list[int],
+    target: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
-    target_end: Optional[int] = None,
+    end: int | None = None,
+    target_end: int | None = None,
     overwrite: bool = False,
     merge: bool = False,
-    status: Optional[bool] = None,
-    cueonly: Optional[bool] = None,
+    status: bool | None = None,
+    cueonly: bool | None = None,
     noconfirm: bool = False,
 ) -> str:
     """
@@ -267,14 +265,14 @@ def copy(
 
 def copy_cue(
     cue_id: int,
-    target: Optional[int] = None,
+    target: int | None = None,
     *,
-    end: Optional[int] = None,
-    target_end: Optional[int] = None,
+    end: int | None = None,
+    target_end: int | None = None,
     overwrite: bool = False,
     merge: bool = False,
-    status: Optional[bool] = None,
-    cueonly: Optional[bool] = None,
+    status: bool | None = None,
+    cueonly: bool | None = None,
     noconfirm: bool = False,
 ) -> str:
     """
@@ -325,11 +323,11 @@ def copy_cue(
 
 def move(
     object_type: str,
-    object_id: Union[int, List[int]],
-    target: Union[int, List[int]],
+    object_id: int | list[int],
+    target: int | list[int],
     *,
-    end: Optional[int] = None,
-    target_end: Optional[int] = None,
+    end: int | None = None,
+    target_end: int | None = None,
 ) -> str:
     """
     Construct a Move command to move objects and give them a new ID.

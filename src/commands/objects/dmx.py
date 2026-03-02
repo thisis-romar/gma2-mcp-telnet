@@ -8,14 +8,13 @@ Contains Object Keywords related to DMX:
 DMX is an object type used to directly control DMX output.
 """
 
-from typing import List, Optional, Union
 
 
 def dmx(
-    address: Optional[Union[int, List[int]]] = None,
+    address: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
-    universe: Optional[int] = None,
+    end: int | None = None,
+    universe: int | None = None,
     select_all: bool = False,
 ) -> str:
     """
@@ -95,9 +94,9 @@ def dmx(
 
 
 def dmx_universe(
-    universe_id: Optional[Union[int, List[int]]] = None,
+    universe_id: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
+    end: int | None = None,
 ) -> str:
     """
     Construct a DmxUniverse command to reference DMX universes.

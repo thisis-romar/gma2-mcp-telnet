@@ -7,12 +7,11 @@ Contains Object Keywords related to groups and selections:
 Group is an object type that contains a collection of fixtures and selection order.
 """
 
-from typing import List, Optional, Union
 
 
 def group(
-    group_id: Optional[Union[int, List[int]]] = None,
-    end: Optional[int] = None,
+    group_id: int | list[int] | None = None,
+    end: int | None = None,
 ) -> str:
     """
     Construct a Group command to select groups.

@@ -5,18 +5,17 @@ Uses mocked telnet client to avoid real network connections.
 Tests navigate(), get_current_location(), and list_destination().
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from src.navigation import (
-    navigate,
+    NavigationResult,
     get_current_location,
     list_destination,
-    NavigationResult,
-    ListDestinationResult,
+    navigate,
 )
 from src.prompt_parser import ConsolePrompt
-
 
 # =========================================================================
 # Fixtures

@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 # Strip ANSI/VT100 escape sequences (e.g. \x1b[32m, \x1b[K) from telnet output
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
@@ -46,10 +45,10 @@ class ConsolePrompt:
     """
 
     raw_response: str
-    prompt_line: Optional[str] = None
-    location: Optional[str] = None
-    object_type: Optional[str] = None
-    object_id: Optional[str] = None
+    prompt_line: str | None = None
+    location: str | None = None
+    object_type: str | None = None
+    object_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +73,7 @@ _LOCATION_SPLIT_DOT_RE = re.compile(r"^([A-Za-z]+)\.(\d+(?:\.\d+)?)$")
 _LOCATION_SINGLE_RE = re.compile(r"^[A-Za-z]\w*$")
 
 
-def _split_location(location: str) -> tuple[Optional[str], Optional[str]]:
+def _split_location(location: str) -> tuple[str | None, str | None]:
     """Attempt to split a location string into object_type and object_id.
 
     Recognises both space-separated (``"Group 1"``) and dot-separated
@@ -182,12 +181,12 @@ class ListEntry:
             these are parsed ``key=value`` properties.
     """
 
-    object_type: Optional[str] = None
-    object_id: Optional[str] = None
-    name: Optional[str] = None
-    raw_line: Optional[str] = None
-    col3: Optional[str] = None
-    columns: Optional[dict[str, str]] = None
+    object_type: str | None = None
+    object_id: str | None = None
+    name: str | None = None
+    raw_line: str | None = None
+    col3: str | None = None
+    columns: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -204,7 +203,7 @@ class ListOutput:
 
     raw_response: str
     entries: tuple[ListEntry, ...]
-    prompt: Optional[ConsolePrompt] = None
+    prompt: ConsolePrompt | None = None
     column_headers: tuple[str, ...] = ()
 
 
@@ -274,9 +273,7 @@ def _is_prompt_line(stripped: str) -> bool:
     """Return True if *stripped* looks like a console prompt."""
     if _BRACKET_PROMPT_RE.search(stripped):
         return True
-    if _ANGLE_PROMPT_RE.search(stripped) and ">Executing" not in stripped:
-        return True
-    return False
+    return bool(_ANGLE_PROMPT_RE.search(stripped) and ">Executing" not in stripped)
 
 
 def _is_data_line(stripped: str) -> bool:
@@ -287,9 +284,7 @@ def _is_data_line(stripped: str) -> bool:
         return True
     if _LIST_DOT_RE.match(stripped):
         return True
-    if _LIST_ID_RE.match(stripped):
-        return True
-    return False
+    return bool(_LIST_ID_RE.match(stripped))
 
 
 def _detect_header(lines: list[str]) -> list[str]:
@@ -370,7 +365,7 @@ def parse_list_output(raw: str) -> ListOutput:
 
     # --- Phase 2: parse data lines ---
     entries: list[ListEntry] = []
-    prompt: Optional[ConsolePrompt] = None
+    prompt: ConsolePrompt | None = None
 
     for line in lines:
         stripped = line.strip()
@@ -400,7 +395,7 @@ def parse_list_output(raw: str) -> ListOutput:
             extra_values = [p.strip() for p in parts[1:]] if len(parts) > 1 else []
 
             # Map extra values to column headers
-            columns: Optional[dict[str, str]] = None
+            columns: dict[str, str] | None = None
             if extra_values:
                 columns = {}
                 # header_columns[0] = col2/col3 header (e.g. "No.", "Version")

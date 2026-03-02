@@ -8,7 +8,6 @@ Test Classes:
 - TestAssignCommands: Tests for assign, assign_function, assign_fade, assign_to_layout
 """
 
-import pytest
 
 
 class TestAssignCommands:

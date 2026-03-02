@@ -13,7 +13,6 @@ Test Classes:
 - TestDefGoCommands: Tests for def_go_back, def_go_forward, def_go_pause
 """
 
-import pytest
 
 
 class TestGoCommands:

@@ -9,14 +9,13 @@ Contains Object Keywords related to time:
 These object types are used for time-related control and synchronization.
 """
 
-from typing import List, Optional, Union
 
 
 def timecode(
-    timecode_id: Optional[Union[int, List[int]]] = None,
+    timecode_id: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
-    slot: Optional[int] = None,
+    end: int | None = None,
+    slot: int | None = None,
     select_all: bool = False,
 ) -> str:
     """
@@ -85,9 +84,9 @@ def timecode(
 
 
 def timecode_slot(
-    slot_id: Optional[Union[int, List[int]]] = None,
+    slot_id: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
+    end: int | None = None,
 ) -> str:
     """
     Construct a TimecodeSlot command to reference timecode slots.
@@ -133,9 +132,9 @@ def timecode_slot(
 
 
 def timer(
-    timer_id: Optional[Union[int, List[int]]] = None,
+    timer_id: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
+    end: int | None = None,
     select_all: bool = False,
 ) -> str:
     """

@@ -14,13 +14,12 @@ Included functions:
 - call: Apply/engage an object or its content
 """
 
-from typing import Optional
 
 
 def call(
     target: str,
     *,
-    status: Optional[bool] = None,
+    status: bool | None = None,
     layer: bool = False,
     screen: bool = False,
     toggle_activation: bool = False,

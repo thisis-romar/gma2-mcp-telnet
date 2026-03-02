@@ -10,7 +10,6 @@ Syntax:
 Note: Empty must be used with the Assign keyword.
 """
 
-import pytest
 
 
 class TestEmpty:

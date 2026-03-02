@@ -9,16 +9,15 @@ Contains Object Keywords related to Cues and Sequences:
 Cue is the only object type that accepts decimal IDs (range 0.001 to 9999.999).
 """
 
-from typing import List, Optional, Union
 
 
 def cue(
-    cue_id: Optional[Union[int, float, List[Union[int, float]]]] = None,
+    cue_id: int | float | list[int | float] | None = None,
     *,
-    end: Optional[Union[int, float]] = None,
-    part: Optional[int] = None,
-    executor: Optional[int] = None,
-    sequence: Optional[int] = None,
+    end: int | float | None = None,
+    part: int | None = None,
+    executor: int | None = None,
+    sequence: int | None = None,
 ) -> str:
     """
     Construct a Cue command to reference cues.
@@ -60,7 +59,7 @@ def cue(
         raise ValueError("Must provide cue_id")
 
     # Helper function: format cue ID (preserve decimal precision)
-    def format_cue_id(cid: Union[int, float]) -> str:
+    def format_cue_id(cid: int | float) -> str:
         if isinstance(cid, float):
             formatted = f"{cid:.3f}".rstrip("0").rstrip(".")
             return formatted
@@ -99,11 +98,11 @@ def cue(
 
 
 def cue_part(
-    cue_id: Union[int, float],
+    cue_id: int | float,
     part_id: int,
     *,
-    executor: Optional[int] = None,
-    sequence: Optional[int] = None,
+    executor: int | None = None,
+    sequence: int | None = None,
 ) -> str:
     """
     Convenience function to reference cue parts.
@@ -133,10 +132,10 @@ def cue_part(
 
 
 def sequence(
-    sequence_id: Optional[Union[int, List[int]]] = None,
+    sequence_id: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
-    pool: Optional[int] = None,
+    end: int | None = None,
+    pool: int | None = None,
 ) -> str:
     """
     Construct a Sequence command to reference sequences.

@@ -21,12 +21,11 @@ Included functions:
 - add_var: Change/extend show variable content
 """
 
-from typing import Optional, Union
 
 
 def set_user_var(
     var_name: str,
-    value: Optional[Union[int, float, str]],
+    value: int | float | str | None,
     *,
     input_dialog: bool = False,
 ) -> str:
@@ -74,7 +73,7 @@ def set_user_var(
 
 def set_var(
     var_name: str,
-    value: Optional[Union[int, float, str]],
+    value: int | float | str | None,
     *,
     input_dialog: bool = False,
 ) -> str:
@@ -122,7 +121,7 @@ def set_var(
 
 def add_user_var(
     var_name: str,
-    value: Union[int, float, str],
+    value: int | float | str,
 ) -> str:
     """
     Construct an AddUserVar command to change/extend user variable content.
@@ -154,7 +153,7 @@ def add_user_var(
 
 def add_var(
     var_name: str,
-    value: Union[int, float, str],
+    value: int | float | str,
 ) -> str:
     """
     Construct an AddVar command to change/extend show variable content.

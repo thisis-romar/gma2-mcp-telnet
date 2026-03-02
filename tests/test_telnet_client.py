@@ -7,11 +7,10 @@ Uses mocks to simulate Telnet connections and avoid actual network calls.
 Uses pytest-asyncio for async testing.
 """
 
-import asyncio
+
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestGMA2TelnetClientInit:

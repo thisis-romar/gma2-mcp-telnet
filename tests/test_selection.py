@@ -8,7 +8,6 @@ Test Classes:
 - TestFixtureCommands: Tests for select_fixture, clear series
 """
 
-import pytest
 
 
 class TestFixtureCommands:

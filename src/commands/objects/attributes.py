@@ -19,10 +19,9 @@ Included functions:
 - feature: Reference feature groups with optional attribute
 """
 
-from typing import Optional, Union
 
 
-def attribute(attr_id: Union[int, str]) -> str:
+def attribute(attr_id: int | str) -> str:
     """
     Construct an Attribute command to reference fixture attributes.
 
@@ -58,8 +57,8 @@ def attribute(attr_id: Union[int, str]) -> str:
 
 
 def feature(
-    feature_id: Union[int, str],
-    attr_num: Optional[int] = None,
+    feature_id: int | str,
+    attr_num: int | None = None,
 ) -> str:
     """
     Construct a Feature command to reference feature groups.

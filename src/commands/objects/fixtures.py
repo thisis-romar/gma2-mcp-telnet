@@ -8,14 +8,13 @@ Contains Object Keywords related to fixtures and channels:
 These are the most basic object types in grandMA2, used for selecting and controlling fixtures.
 """
 
-from typing import List, Optional, Union
 
 
 def fixture(
-    fixture_id: Optional[Union[int, List[int]]] = None,
-    end: Optional[int] = None,
+    fixture_id: int | list[int] | None = None,
+    end: int | None = None,
     *,
-    sub_id: Optional[int] = None,
+    sub_id: int | None = None,
     select_all: bool = False,
 ) -> str:
     """
@@ -70,10 +69,10 @@ def fixture(
 
 
 def channel(
-    channel_id: Optional[Union[int, List[int]]] = None,
-    end: Optional[int] = None,
+    channel_id: int | list[int] | None = None,
+    end: int | None = None,
     *,
-    sub_id: Optional[int] = None,
+    sub_id: int | None = None,
     select_all: bool = False,
 ) -> str:
     """

@@ -46,6 +46,119 @@ from .constants import (
     STORE_VALUE_OPTIONS,
 )
 
+# Function Keywords
+from .functions import (
+    # Helping Keywords (Plus +, Minus -, And, If)
+    add_to_selection,
+    add_user_var,
+    add_var,
+    # Appearance Function Keyword
+    appearance,
+    # Assign Function Keyword
+    assign,
+    assign_fade,
+    assign_function,
+    assign_property,
+    assign_to_layout,
+    # At Function Keyword
+    at,
+    at_full,
+    at_relative,
+    at_zero,
+    attribute_at,
+    # Call Function Keywords
+    call,
+    # Other Function Keywords
+    call_preset,
+    # Navigation Function Keywords
+    changedest,
+    channel_at,
+    clear,
+    clear_active,
+    clear_all,
+    clear_selection,
+    condition_and,
+    # Copy Function Keyword
+    copy,
+    copy_cue,
+    # Cut Function Keyword
+    cut,
+    def_go_back,
+    def_go_forward,
+    def_go_pause,
+    # Delete Function Keyword
+    delete,
+    delete_cue,
+    delete_fixture,
+    delete_group,
+    delete_messages,
+    delete_preset,
+    # Edit Function Keyword
+    edit,
+    empty,
+    executor_at,
+    fixture_at,
+    go,
+    go_back,
+    go_back_executor,
+    go_executor,
+    go_fast_back,
+    go_fast_forward,
+    go_macro,
+    go_sequence,
+    goto,
+    goto_cue,
+    group_at,
+    if_condition,
+    # Info Function Keyword
+    info,
+    info_cue,
+    info_group,
+    info_preset,
+    # Label Function Keyword
+    label,
+    label_group,
+    label_preset,
+    list_attribute,
+    list_cue,
+    list_group,
+    list_messages,
+    # List Function Keyword
+    list_objects,
+    list_preset,
+    # Macro Placeholder
+    macro_with_input_after,
+    macro_with_input_before,
+    # Move Function Keyword
+    move,
+    page_next,
+    page_previous,
+    # Park Function Keywords
+    park,
+    # Paste Function Keyword
+    paste,
+    pause_sequence,
+    preset_type_at,
+    # Remove Function Keyword
+    remove,
+    remove_effect,
+    remove_fixture,
+    remove_from_selection,
+    remove_preset_type,
+    remove_selection,
+    select_fixture,
+    select_group,
+    # Variable Function Keywords
+    set_user_var,
+    set_var,
+    store,
+    store_cue,
+    store_group,
+    store_preset,
+    temp_fader,
+    unpark,
+)
+
 # Object Keywords
 from .objects import (
     attribute,
@@ -65,119 +178,6 @@ from .objects import (
     timecode,
     timecode_slot,
     timer,
-)
-
-# Function Keywords
-from .functions import (
-    # Assign Function Keyword
-    assign,
-    assign_property,
-    assign_fade,
-    assign_function,
-    assign_to_layout,
-    empty,
-    temp_fader,
-    # Label Function Keyword
-    label,
-    # Appearance Function Keyword
-    appearance,
-    # At Function Keyword
-    at,
-    at_full,
-    at_zero,
-    attribute_at,
-    channel_at,
-    executor_at,
-    fixture_at,
-    group_at,
-    preset_type_at,
-    # Edit Function Keyword
-    edit,
-    # Cut Function Keyword
-    cut,
-    # Paste Function Keyword
-    paste,
-    # Copy Function Keyword
-    copy,
-    copy_cue,
-    # Move Function Keyword
-    move,
-    # Delete Function Keyword
-    delete,
-    delete_cue,
-    delete_fixture,
-    delete_group,
-    delete_messages,
-    delete_preset,
-    # Remove Function Keyword
-    remove,
-    remove_effect,
-    remove_fixture,
-    remove_preset_type,
-    remove_selection,
-    # List Function Keyword
-    list_objects,
-    list_attribute,
-    list_cue,
-    list_group,
-    list_messages,
-    list_preset,
-    # Info Function Keyword
-    info,
-    info_cue,
-    info_group,
-    info_preset,
-    # Macro Placeholder
-    macro_with_input_after,
-    macro_with_input_before,
-    # Helping Keywords (Plus +, Minus -, And, If)
-    add_to_selection,
-    at_relative,
-    condition_and,
-    if_condition,
-    page_next,
-    page_previous,
-    remove_from_selection,
-    # Park Function Keywords
-    park,
-    unpark,
-    # Call Function Keywords
-    call,
-    # Variable Function Keywords
-    set_user_var,
-    set_var,
-    add_user_var,
-    add_var,
-    # Navigation Function Keywords
-    changedest,
-    # Other Function Keywords
-    call_preset,
-    clear,
-    clear_active,
-    clear_all,
-    clear_selection,
-    def_go_back,
-    def_go_forward,
-    def_go_pause,
-    go,
-    go_back,
-    go_back_executor,
-    go_executor,
-    go_fast_back,
-    go_fast_forward,
-    go_macro,
-    go_sequence,
-    goto,
-    goto_cue,
-    label_group,
-    label_preset,
-    pause_sequence,
-    select_fixture,
-    select_group,
-    store,
-    store_cue,
-    store_group,
-    store_preset,
 )
 
 __all__ = [

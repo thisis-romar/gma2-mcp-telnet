@@ -16,82 +16,169 @@ import os
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-from src.telnet_client import GMA2TelnetClient
-from src.tools import set_gma2_client
 from src.commands import (
-    select_fixture,
-    store_group,
-    label_group,
-    go_sequence,
-    pause_sequence,
-    goto_cue,
-    fixture_at,
-    group_at,
-    channel_at,
-    attribute_at,
-    at,
-    at_full,
-    at_zero,
-    call,
-    store_cue as build_store_cue,
-    label as build_label,
-    info as build_info,
-    clear as build_clear,
-    clear_all as build_clear_all,
-    clear_selection as build_clear_selection,
-    clear_active as build_clear_active,
-    park as build_park,
-    unpark as build_unpark,
-    go_macro,
-    delete as build_delete,
-    delete_cue as build_delete_cue,
-    copy as build_copy,
-    move as build_move,
-    store_preset as build_store_preset,
-    # playback_action
-    go as build_go,
-    go_back as build_go_back,
-    goto as build_goto,
-    go_fast_back as build_go_fast_back,
-    go_fast_forward as build_go_fast_forward,
-    def_go_forward as build_def_go_forward,
-    def_go_pause as build_def_go_pause,
+    add_user_var as build_add_user_var,
+)
+from src.commands import (
+    add_var as build_add_var,
+)
+from src.commands import (
+    appearance as build_appearance,
+)
+from src.commands import (
     # assign_object
     assign as build_assign,
-    assign_function as build_assign_function,
+)
+from src.commands import (
     assign_fade as build_assign_fade,
+)
+from src.commands import (
+    assign_function as build_assign_function,
+)
+from src.commands import (
     assign_to_layout as build_assign_to_layout,
-    empty as build_empty,
-    temp_fader as build_temp_fader,
+)
+from src.commands import (
+    attribute_at,
+    call,
+    channel_at,
+    fixture_at,
+    go_macro,
+    go_sequence,
+    goto_cue,
+    group_at,
+    label_group,
+    pause_sequence,
+    select_fixture,
+    store_group,
+)
+from src.commands import (
+    clear as build_clear,
+)
+from src.commands import (
+    clear_active as build_clear_active,
+)
+from src.commands import (
+    clear_all as build_clear_all,
+)
+from src.commands import (
+    clear_selection as build_clear_selection,
+)
+from src.commands import (
+    copy as build_copy,
+)
+from src.commands import (
+    cut as build_cut,
+)
+from src.commands import (
+    def_go_forward as build_def_go_forward,
+)
+from src.commands import (
+    def_go_pause as build_def_go_pause,
+)
+from src.commands import (
+    delete as build_delete,
+)
+from src.commands import (
+    delete_cue as build_delete_cue,
+)
+from src.commands import (
     # edit_object
     edit as build_edit,
-    cut as build_cut,
-    paste as build_paste,
-    # remove_content
-    remove as build_remove,
-    remove_fixture as build_remove_fixture,
-    remove_effect as build_remove_effect,
-    remove_preset_type as build_remove_preset_type,
-    remove_selection as build_remove_selection,
-    # query_object_list
-    list_objects as build_list_objects,
-    list_cue as build_list_cue,
-    list_group as build_list_group,
-    list_preset as build_list_preset,
-    list_attribute as build_list_attribute,
-    list_messages as build_list_messages,
-    # manage_variable
-    set_var as build_set_var,
-    set_user_var as build_set_user_var,
-    add_var as build_add_var,
-    add_user_var as build_add_user_var,
+)
+from src.commands import (
+    # playback_action
+    go as build_go,
+)
+from src.commands import (
+    go_back as build_go_back,
+)
+from src.commands import (
+    go_fast_back as build_go_fast_back,
+)
+from src.commands import (
+    go_fast_forward as build_go_fast_forward,
+)
+from src.commands import (
+    goto as build_goto,
+)
+from src.commands import (
+    info as build_info,
+)
+from src.commands import (
+    label as build_label,
+)
+from src.commands import (
     # label_or_appearance
     label_preset as build_label_preset,
-    appearance as build_appearance,
+)
+from src.commands import (
+    list_attribute as build_list_attribute,
+)
+from src.commands import (
+    list_cue as build_list_cue,
+)
+from src.commands import (
+    list_group as build_list_group,
+)
+from src.commands import (
+    list_messages as build_list_messages,
+)
+from src.commands import (
+    # query_object_list
+    list_objects as build_list_objects,
+)
+from src.commands import (
+    list_preset as build_list_preset,
+)
+from src.commands import (
+    move as build_move,
+)
+from src.commands import (
+    park as build_park,
+)
+from src.commands import (
+    paste as build_paste,
+)
+from src.commands import (
+    # remove_content
+    remove as build_remove,
+)
+from src.commands import (
+    remove_effect as build_remove_effect,
+)
+from src.commands import (
+    remove_fixture as build_remove_fixture,
+)
+from src.commands import (
+    remove_preset_type as build_remove_preset_type,
+)
+from src.commands import (
+    remove_selection as build_remove_selection,
+)
+from src.commands import (
+    set_user_var as build_set_user_var,
+)
+from src.commands import (
+    # manage_variable
+    set_var as build_set_var,
+)
+from src.commands import (
     # store_object
     store as build_store_generic,
 )
-from src.navigation import navigate, get_current_location, list_destination, scan_indexes, set_property
+from src.commands import (
+    store_cue as build_store_cue,
+)
+from src.commands import (
+    store_preset as build_store_preset,
+)
+from src.commands import (
+    unpark as build_unpark,
+)
+from src.navigation import get_current_location, list_destination, navigate, scan_indexes, set_property
+from src.telnet_client import GMA2TelnetClient
+from src.tools import set_gma2_client
 from src.vocab import RiskTier, build_v39_spec, classify_token
 
 # Load environment variables
@@ -179,10 +266,9 @@ async def get_client() -> GMA2TelnetClient:
     global _client, _connected
 
     # Check if existing connection is still healthy
-    if _client is not None and _connected:
-        if _client._writer is None:
-            logger.warning("Connection lost, reconnecting...")
-            _connected = False
+    if _client is not None and _connected and _client._writer is None:
+        logger.warning("Connection lost, reconnecting...")
+        _connected = False
 
     if _client is None or not _connected:
         _client = GMA2TelnetClient(
@@ -402,8 +488,8 @@ async def send_raw_command(
             "command_sent": None,
             "risk_tier": risk.value,
             "error": (
-                f"Server is in read-only mode (GMA_SAFETY_LEVEL=read-only). "
-                f"Only SAFE_READ commands (list, info, cd) are allowed."
+                "Server is in read-only mode (GMA_SAFETY_LEVEL=read-only). "
+                "Only SAFE_READ commands (list, info, cd) are allowed."
             ),
             "blocked": True,
         }, indent=2)

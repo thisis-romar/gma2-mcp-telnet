@@ -22,7 +22,6 @@ Test Classes:
 - TestPresetType: Tests for PresetType object reference
 """
 
-import pytest
 
 
 class TestAttribute:

@@ -1,9 +1,11 @@
 """Capture raw list output at key locations to debug cd index parsing."""
 
 import asyncio
-from src.telnet_client import GMA2TelnetClient
-from src.prompt_parser import parse_prompt, parse_list_output, _strip_ansi
+
 from dotenv import get_key
+
+from src.prompt_parser import _strip_ansi, parse_list_output, parse_prompt
+from src.telnet_client import GMA2TelnetClient
 
 
 async def main():
@@ -68,7 +70,7 @@ async def main():
     await dump_list("LiveSetup/FixtureTypes/Universal Attributes")
 
     # Test 4: Verify cd 4 is genuinely missing
-    loc_before = await cd("/")
+    await cd("/")
     await cd("10")
     await cd("3")
     await cd("1")

@@ -1,9 +1,11 @@
 """Quick validation: login, cd 23.3.1.1 deep path, full list output at each level."""
 
 import asyncio
-from src.telnet_client import GMA2TelnetClient
-from src.prompt_parser import parse_prompt, parse_list_output, _strip_ansi
+
 from dotenv import get_key
+
+from src.prompt_parser import _strip_ansi, parse_list_output, parse_prompt
+from src.telnet_client import GMA2TelnetClient
 
 
 async def main():
@@ -29,18 +31,18 @@ async def main():
         raw = await client.send_command_with_response("list", timeout=3.0, delay=0.5)
         stripped = _strip_ansi(raw)
         parsed = parse_list_output(raw)
-        lines = [l.strip() for l in stripped.strip().splitlines() if l.strip()]
+        lines = [line.strip() for line in stripped.strip().splitlines() if line.strip()]
         # Filter out command echo and prompt lines
         data_lines = [
-            l
-            for l in lines
-            if not l.startswith("Executing")
-            and not l.rstrip().endswith(">")
-            and "WARNING" not in l
+            line
+            for line in lines
+            if not line.startswith("Executing")
+            and not line.rstrip().endswith(">")
+            and "WARNING" not in line
         ]
         print(f"  list -> {len(parsed.entries)} parsed, {len(data_lines)} raw lines:")
-        for l in data_lines:
-            print(f"    | {l}")
+        for line in data_lines:
+            print(f"    | {line}")
         print()
         return parsed.entries
 
@@ -64,7 +66,7 @@ async def main():
             raw = await client.send_command_with_response("cd ..", timeout=2.0, delay=0.3)
             p = parse_prompt(raw)
             if test_loc == p.location or test_loc is None:
-                print(f"  (confirmed leaf - cd 1 was a MISS)")
+                print("  (confirmed leaf - cd 1 was a MISS)")
             else:
                 print(f"  (NOT a leaf - cd 1 moved to {test_loc!r})")
                 # go back
@@ -73,7 +75,7 @@ async def main():
 
     # Backtrack with cd ..
     print("=== BACKTRACK ===")
-    for i in range(len(path_steps) + 1):
+    for _i in range(len(path_steps) + 1):
         raw = await client.send_command_with_response("cd ..", timeout=2.0, delay=0.3)
         stripped = _strip_ansi(raw)
         p = parse_prompt(raw)

@@ -11,8 +11,6 @@ Included functions:
 - clear_all: Empty entire programmer
 """
 
-from typing import List, Optional, Union
-
 
 # ============================================================================
 # SELFIX FUNCTION KEYWORD
@@ -20,10 +18,10 @@ from typing import List, Optional, Union
 
 
 def select_fixture(
-    ids: Optional[Union[int, List[int]]] = None,
-    end: Optional[int] = None,
+    ids: int | list[int] | None = None,
+    end: int | None = None,
     *,
-    start: Optional[int] = None,
+    start: int | None = None,
     thru_all: bool = False,
     select_all: bool = False,
 ) -> str:
@@ -57,7 +55,7 @@ def select_fixture(
     if thru_all and start is not None:
         return f"selfix fixture {start} thru"
 
-    actual_start: Optional[int] = None
+    actual_start: int | None = None
 
     if ids is not None:
         if isinstance(ids, list):

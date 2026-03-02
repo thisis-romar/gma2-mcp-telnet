@@ -18,7 +18,6 @@ Syntax:
     AddUserVar $variablename = "text"
 """
 
-import pytest
 
 
 class TestSetUserVar:

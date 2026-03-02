@@ -19,15 +19,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Optional
+from dataclasses import asdict, dataclass, field
 
 from dotenv import get_key
 
+from src.prompt_parser import _strip_ansi, parse_list_output, parse_prompt
 from src.telnet_client import GMA2TelnetClient
-from src.prompt_parser import parse_prompt, parse_list_output, _strip_ansi
 
 
 @dataclass
@@ -37,9 +35,9 @@ class Step:
     command: str
     raw_response: str = ""
     stripped_response: str = ""
-    parsed_location: Optional[str] = None
-    parsed_object_type: Optional[str] = None
-    parsed_object_id: Optional[str] = None
+    parsed_location: str | None = None
+    parsed_object_type: str | None = None
+    parsed_object_id: str | None = None
     list_entry_count: int = 0
     list_entries: list[dict] = field(default_factory=list)
     notes: str = ""
@@ -128,7 +126,6 @@ async def run_tests(client: GMA2TelnetClient) -> list[Step]:
     # list at root
     s = await send_list(client, "T1.2 list at root")
     log(s)
-    root_entries = s.list_entries
     root_entry_count = s.list_entry_count
 
     # ================================================================
@@ -277,7 +274,7 @@ async def run_tests(client: GMA2TelnetClient) -> list[Step]:
     if loc_8_15 == loc_8:
         s.notes = f"CIRCULAR at depth 2 - same as parent {loc_8!r}"
     elif loc_8_15 == root_location:
-        s.notes = f"ESCAPED to root at depth 2"
+        s.notes = "ESCAPED to root at depth 2"
 
     s = await send_and_parse(client, "cd 15", "T6.4 cd 15 again (depth 3)")
     loc_8_15_15 = s.parsed_location
@@ -288,7 +285,7 @@ async def run_tests(client: GMA2TelnetClient) -> list[Step]:
     elif loc_8_15_15 == loc_8_15:
         s.notes = f"STUCK - same as previous level {loc_8_15!r}"
     elif loc_8_15_15 == root_location:
-        s.notes = f"ESCAPED to root at depth 3"
+        s.notes = "ESCAPED to root at depth 3"
 
     # list to see what's here
     s = await send_list(client, "T6.5 list at depth 3")

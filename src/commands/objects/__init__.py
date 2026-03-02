@@ -39,28 +39,27 @@ Time related:
 """
 
 # Fixture/Channel related
-from .fixtures import channel, fixture
-
-# Group/Selection related
-from .groups import group
-
-# Preset related
-from .presets import preset, preset_type
-
 # Attribute/Feature related
 from .attributes import attribute, feature
 
 # Cue/Sequence related
 from .cues import cue, cue_part, sequence
 
+# DMX related
+from .dmx import dmx, dmx_universe
+
 # Executor related
 from .executors import executor
+from .fixtures import channel, fixture
+
+# Group/Selection related
+from .groups import group
 
 # Layout/View related
 from .layouts import layout
 
-# DMX related
-from .dmx import dmx, dmx_universe
+# Preset related
+from .presets import preset, preset_type
 
 # Time related
 from .time import timecode, timecode_slot, timer

@@ -34,7 +34,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 # All tool functions are imported directly from the server module
-from src.server import (
+from src.server import (  # noqa: E402
     apply_preset,
     assign_object,
     clear_programmer,
@@ -63,7 +63,6 @@ from src.server import (
     store_object,
     unpark_fixture,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

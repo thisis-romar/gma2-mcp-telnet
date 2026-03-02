@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Union
 
 from src.commands import assign_property as _build_assign_property
 from src.commands import changedest, list_objects
@@ -31,7 +30,6 @@ from src.prompt_parser import (
     parse_prompt,
 )
 from src.telnet_client import GMA2TelnetClient
-
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +48,7 @@ class NavigationResult:
     command_sent: str
     raw_response: str
     parsed_prompt: ConsolePrompt
-    success: Optional[bool] = None
+    success: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -71,7 +69,7 @@ class ListDestinationResult:
 async def navigate(
     client: GMA2TelnetClient,
     destination: str,
-    object_id: Optional[Union[int, str]] = None,
+    object_id: int | str | None = None,
     *,
     timeout: float = 2.0,
     delay: float = 0.3,
@@ -101,7 +99,7 @@ async def navigate(
 
     parsed = parse_prompt(raw_response)
 
-    success: Optional[bool] = None
+    success: bool | None = None
     if parsed.prompt_line is not None:
         success = True
 
@@ -147,7 +145,7 @@ async def get_current_location(
 
     parsed = parse_prompt(raw_response)
 
-    success: Optional[bool] = True if parsed.prompt_line is not None else None
+    success: bool | None = True if parsed.prompt_line is not None else None
 
     return NavigationResult(
         command_sent=cmd,
@@ -159,7 +157,7 @@ async def get_current_location(
 
 async def list_destination(
     client: GMA2TelnetClient,
-    object_type: Optional[str] = None,
+    object_type: str | None = None,
     *,
     timeout: float = 2.0,
     delay: float = 0.3,
@@ -221,8 +219,8 @@ class SetPropertyResult:
     commands_sent: list
     raw_responses: list
     success: bool
-    verified_value: Optional[str] = None
-    error: Optional[str] = None
+    verified_value: str | None = None
+    error: str | None = None
 
 
 async def set_property(
@@ -297,7 +295,7 @@ async def set_property(
     raw_responses.append(assign_response)
 
     # 4. Optionally verify by re-listing
-    verified_value: Optional[str] = None
+    verified_value: str | None = None
     if verify:
         lst = await list_destination(client, timeout=timeout, delay=delay)
         commands_sent.append(lst.command_sent)
@@ -336,8 +334,8 @@ class IndexScanEntry:
     """
 
     index: int
-    location: Optional[str]
-    object_type: Optional[str]
+    location: str | None
+    object_type: str | None
     entries: tuple
 
 

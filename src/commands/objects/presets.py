@@ -9,17 +9,16 @@ Preset Types mapping:
 - dimmer=1, color=2, gobo=3, beam=4, focus=5, control=6, shapers=7, video=8
 """
 
-from typing import List, Optional, Union
 
 from ..constants import PRESET_TYPES
 
 
 def preset(
-    preset_type_or_id: Optional[Union[int, str]] = None,
-    preset_id: Optional[Union[int, List[int]]] = None,
+    preset_type_or_id: int | str | None = None,
+    preset_id: int | list[int] | None = None,
     *,
-    name: Optional[str] = None,
-    end: Optional[int] = None,
+    name: str | None = None,
+    end: int | None = None,
     wildcard: bool = False,
 ) -> str:
     """
@@ -105,11 +104,11 @@ def preset(
 
 
 def preset_type(
-    type_id: Optional[Union[int, str]] = None,
+    type_id: int | str | None = None,
     *,
-    name: Optional[str] = None,
-    feature: Optional[int] = None,
-    attribute: Optional[int] = None,
+    name: str | None = None,
+    feature: int | None = None,
+    attribute: int | None = None,
 ) -> str:
     """
     Construct a PresetType command to call or select preset types.

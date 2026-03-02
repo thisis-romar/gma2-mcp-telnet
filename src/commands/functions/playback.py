@@ -17,7 +17,7 @@ Included functions:
 - def_go_pause: Pause selected executor
 """
 
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 # Cue mode type definition
 CueMode = Literal["normal", "assert", "xassert", "release"]
@@ -33,12 +33,12 @@ CueMode = Literal["normal", "assert", "xassert", "release"]
 
 
 def go(
-    object_type: Optional[str] = None,
-    object_id: Optional[Union[int, List[int]]] = None,
+    object_type: str | None = None,
+    object_id: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
-    cue_mode: Optional[CueMode] = None,
-    userprofile: Optional[str] = None,
+    end: int | None = None,
+    cue_mode: CueMode | None = None,
+    userprofile: str | None = None,
 ) -> str:
     """
     Construct a Go command to activate the next step of an executing object.
@@ -92,11 +92,11 @@ def go(
 
 
 def go_executor(
-    executor_id: Union[int, List[int]],
+    executor_id: int | list[int],
     *,
-    end: Optional[int] = None,
-    cue_mode: Optional[CueMode] = None,
-    userprofile: Optional[str] = None,
+    end: int | None = None,
+    cue_mode: CueMode | None = None,
+    userprofile: str | None = None,
 ) -> str:
     """
     Construct a Go command for an executor.
@@ -151,12 +151,12 @@ def go_macro(macro_id: int) -> str:
 
 
 def go_back(
-    object_type: Optional[str] = None,
-    object_id: Optional[Union[int, List[int]]] = None,
+    object_type: str | None = None,
+    object_id: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
-    cue_mode: Optional[CueMode] = None,
-    userprofile: Optional[str] = None,
+    end: int | None = None,
+    cue_mode: CueMode | None = None,
+    userprofile: str | None = None,
 ) -> str:
     """
     Construct a GoBack command to activate the previous step of an object.
@@ -205,11 +205,11 @@ def go_back(
 
 
 def go_back_executor(
-    executor_id: Union[int, List[int]],
+    executor_id: int | list[int],
     *,
-    end: Optional[int] = None,
-    cue_mode: Optional[CueMode] = None,
-    userprofile: Optional[str] = None,
+    end: int | None = None,
+    cue_mode: CueMode | None = None,
+    userprofile: str | None = None,
 ) -> str:
     """
     Construct a GoBack command for an executor.
@@ -243,12 +243,12 @@ def go_back_executor(
 
 
 def goto(
-    cue_id: Union[int, float],
+    cue_id: int | float,
     *,
-    executor: Optional[int] = None,
-    sequence: Optional[int] = None,
-    cue_mode: Optional[CueMode] = None,
-    userprofile: Optional[str] = None,
+    executor: int | None = None,
+    sequence: int | None = None,
+    cue_mode: CueMode | None = None,
+    userprofile: str | None = None,
 ) -> str:
     """
     Construct a Goto command to jump to a specific cue.
@@ -352,8 +352,8 @@ def goto_cue(sequence_id: int, cue_id: int) -> str:
 
 def go_fast_back(
     *,
-    executor: Optional[Union[int, List[int]]] = None,
-    sequence: Optional[int] = None,
+    executor: int | list[int] | None = None,
+    sequence: int | None = None,
 ) -> str:
     """
     Construct a GoFastBack (<<<) command to jump quickly to the previous step.
@@ -392,8 +392,8 @@ def go_fast_back(
 
 def go_fast_forward(
     *,
-    executor: Optional[Union[int, List[int]]] = None,
-    sequence: Optional[int] = None,
+    executor: int | list[int] | None = None,
+    sequence: int | None = None,
 ) -> str:
     """
     Construct a GoFastForward (>>>) command to jump quickly to the next step.

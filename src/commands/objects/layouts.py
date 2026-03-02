@@ -7,12 +7,11 @@ Contains Object Keywords related to Layouts and Views:
 Layout is an object type that represents the layout of fixtures and other objects.
 """
 
-from typing import List, Optional, Union
 
 
 def layout(
-    layout_id: Optional[Union[int, List[int]]] = None,
-    end: Optional[int] = None,
+    layout_id: int | list[int] | None = None,
+    end: int | None = None,
 ) -> str:
     """
     Construct a Layout command to select layouts.

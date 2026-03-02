@@ -6,7 +6,6 @@ This file is used to define shared fixtures and test configuration.
 
 import pytest
 
-
 # Configure pytest-asyncio default mode
 pytest_plugins = ["pytest_asyncio"]
 

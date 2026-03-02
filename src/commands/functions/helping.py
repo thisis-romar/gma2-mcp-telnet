@@ -16,10 +16,9 @@ Included functions:
 - page_previous: Navigate to previous page
 """
 
-from typing import List, Optional, Union
 
 
-def at_relative(value: Union[int, float]) -> str:
+def at_relative(value: int | float) -> str:
     """
     Construct an At command with a relative value change.
 
@@ -60,9 +59,9 @@ def at_relative(value: Union[int, float]) -> str:
 
 
 def add_to_selection(
-    ids: Union[int, List[int]],
+    ids: int | list[int],
     *,
-    end: Optional[int] = None,
+    end: int | None = None,
 ) -> str:
     """
     Construct a command to add objects to the current selection using Plus (+).
@@ -99,9 +98,9 @@ def add_to_selection(
 
 
 def remove_from_selection(
-    ids: Union[int, List[int]],
+    ids: int | list[int],
     *,
-    end: Optional[int] = None,
+    end: int | None = None,
 ) -> str:
     """
     Construct a command to remove objects from the current selection using Minus (-).
@@ -137,7 +136,7 @@ def remove_from_selection(
     return f"- {ids}"
 
 
-def page_next(steps: Optional[int] = None) -> str:
+def page_next(steps: int | None = None) -> str:
     """
     Construct a command to navigate to the next page.
 
@@ -161,7 +160,7 @@ def page_next(steps: Optional[int] = None) -> str:
     return f"page + {steps}"
 
 
-def page_previous(steps: Optional[int] = None) -> str:
+def page_previous(steps: int | None = None) -> str:
     """
     Construct a command to navigate to the previous page.
 

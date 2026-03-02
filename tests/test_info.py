@@ -10,7 +10,6 @@ Test Classes:
 - TestInfoCommands: Tests for info, info_group, info_cue, info_preset
 """
 
-import pytest
 
 
 class TestListCommands:

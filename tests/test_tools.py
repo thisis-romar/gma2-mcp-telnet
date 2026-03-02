@@ -8,9 +8,9 @@ The MCP tool functions are defined in src/server.py with @mcp.tool() decorators.
 """
 
 import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 
 
 class TestCreateFixtureGroupTool:
@@ -47,7 +47,7 @@ class TestCreateFixtureGroupTool:
         mock_client.send_command = AsyncMock()
         mock_get_client.return_value = mock_client
 
-        result = await create_fixture_group(
+        await create_fixture_group(
             start_fixture=1, end_fixture=10, group_id=1, group_name="Front Wash"
         )
 
@@ -67,7 +67,7 @@ class TestCreateFixtureGroupTool:
         mock_client.send_command = AsyncMock()
         mock_get_client.return_value = mock_client
 
-        result = await create_fixture_group(
+        await create_fixture_group(
             start_fixture=1, end_fixture=10, group_id=1, group_name="Front Stage Wash"
         )
 
@@ -88,7 +88,7 @@ class TestExecuteSequenceTool:
         mock_client.send_command = AsyncMock()
         mock_get_client.return_value = mock_client
 
-        result = await execute_sequence(sequence_id=1, action="go")
+        await execute_sequence(sequence_id=1, action="go")
 
         mock_client.send_command.assert_called_once_with("go+ sequence 1")
 
@@ -102,7 +102,7 @@ class TestExecuteSequenceTool:
         mock_client.send_command = AsyncMock()
         mock_get_client.return_value = mock_client
 
-        result = await execute_sequence(sequence_id=1, action="pause")
+        await execute_sequence(sequence_id=1, action="pause")
 
         mock_client.send_command.assert_called_once_with("pause sequence 1")
 
@@ -116,7 +116,7 @@ class TestExecuteSequenceTool:
         mock_client.send_command = AsyncMock()
         mock_get_client.return_value = mock_client
 
-        result = await execute_sequence(sequence_id=1, action="goto", cue_id=5)
+        await execute_sequence(sequence_id=1, action="goto", cue_id=5)
 
         mock_client.send_command.assert_called_once_with("goto cue 5 sequence 1")
 
@@ -128,8 +128,9 @@ class TestSendRawCommandTool:
     @patch("src.server.get_client")
     async def test_send_safe_write_command(self, mock_get_client):
         """Test sending a SAFE_WRITE command (selfix) — should be allowed."""
-        from src.server import send_raw_command
         import json
+
+        from src.server import send_raw_command
 
         mock_client = MagicMock()
         mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
@@ -148,8 +149,9 @@ class TestSendRawCommandTool:
     @patch("src.server.get_client")
     async def test_block_destructive_command(self, mock_get_client):
         """Test that destructive commands are blocked without confirm_destructive."""
-        from src.server import send_raw_command
         import json
+
+        from src.server import send_raw_command
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -167,8 +169,9 @@ class TestSendRawCommandTool:
     @patch("src.server.get_client")
     async def test_allow_destructive_with_confirm(self, mock_get_client):
         """Test that destructive commands pass with confirm_destructive=True."""
-        from src.server import send_raw_command
         import json
+
+        from src.server import send_raw_command
 
         mock_client = MagicMock()
         mock_client.send_command_with_response = AsyncMock(return_value="Ok")
@@ -184,8 +187,9 @@ class TestSendRawCommandTool:
     @pytest.mark.asyncio
     async def test_block_command_injection(self):
         """Test that commands with line breaks are rejected."""
-        from src.server import send_raw_command
         import json
+
+        from src.server import send_raw_command
 
         result = await send_raw_command("list\r\ndelete cue 1")
         data = json.loads(result)
@@ -198,8 +202,9 @@ class TestSendRawCommandTool:
     @patch("src.server.get_client")
     async def test_safe_read_always_allowed(self, mock_get_client):
         """Test that SAFE_READ commands (list, info, cd) are always allowed."""
-        from src.server import send_raw_command
         import json
+
+        from src.server import send_raw_command
 
         mock_client = MagicMock()
         mock_client.send_command_with_response = AsyncMock(return_value="[Fixture]>")
@@ -362,7 +367,7 @@ class TestApplyPresetTool:
         result = await apply_preset(
             preset_type="gobo", preset_id=5, fixture_id=1, fixture_end=10
         )
-        data = json.loads(result)
+        json.loads(result)
 
         calls = mock_client.send_command_with_response.call_args_list
         assert calls[0][0][0] == "selfix fixture 1 thru 10"
@@ -429,7 +434,7 @@ class TestStoreCueTool:
         mock_get_client.return_value = mock_client
 
         result = await store_current_cue(cue_number=3, label="Opening Look")
-        data = json.loads(result)
+        json.loads(result)
 
         calls = mock_client.send_command_with_response.call_args_list
         assert len(calls) == 2
@@ -570,8 +575,8 @@ class TestSetNodePropertyTool:
     @patch("src.server.get_client")
     async def test_set_property_basic(self, mock_get_client, mock_set_property):
         """Test setting a property on a node."""
-        from src.server import set_node_property
         from src.navigation import SetPropertyResult
+        from src.server import set_node_property
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -599,8 +604,8 @@ class TestSetNodePropertyTool:
     @patch("src.server.get_client")
     async def test_set_property_failure(self, mock_get_client, mock_set_property):
         """Test property set that fails verification."""
-        from src.server import set_node_property
         from src.navigation import SetPropertyResult
+        from src.server import set_node_property
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -650,7 +655,7 @@ class TestSetAttributeTool:
         mock_get_client.return_value = mock_client
 
         result = await set_attribute(attribute_name="Tilt", value=50, group_id=2)
-        data = json.loads(result)
+        json.loads(result)
 
         calls = mock_client.send_command_with_response.call_args_list
         assert calls[0][0][0] == "group 2"
@@ -669,7 +674,7 @@ class TestSetAttributeTool:
         result = await set_attribute(
             attribute_name="Zoom", value=80, fixture_id=1, fixture_end=10
         )
-        data = json.loads(result)
+        json.loads(result)
 
         calls = mock_client.send_command_with_response.call_args_list
         assert calls[0][0][0] == "selfix fixture 1 thru 10"
@@ -889,8 +894,8 @@ class TestNavigateConsoleTool:
     @patch("src.server.get_client")
     async def test_navigate_to_root(self, mock_get_client, mock_navigate):
         """Test navigating to root."""
-        from src.server import navigate_console
         from src.prompt_parser import ConsolePrompt
+        from src.server import navigate_console
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -920,8 +925,8 @@ class TestNavigateConsoleTool:
     @patch("src.server.get_client")
     async def test_navigate_with_object_id(self, mock_get_client, mock_navigate):
         """Test navigating with dot notation."""
-        from src.server import navigate_console
         from src.prompt_parser import ConsolePrompt
+        from src.server import navigate_console
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -955,8 +960,8 @@ class TestGetConsoleLocationTool:
     @patch("src.server.get_client")
     async def test_get_location(self, mock_get_client, mock_get_location):
         """Test querying current location."""
-        from src.server import get_console_location
         from src.prompt_parser import ConsolePrompt
+        from src.server import get_console_location
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -989,8 +994,8 @@ class TestListConsoleDestinationTool:
     @patch("src.server.get_client")
     async def test_list_destination(self, mock_get_client, mock_list_dest):
         """Test listing objects at current destination."""
-        from src.server import list_console_destination
         from src.prompt_parser import ListEntry, ListOutput
+        from src.server import list_console_destination
 
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client

@@ -13,10 +13,8 @@ Included functions:
 - appearance: Change object appearance
 """
 
-from typing import List, Optional, Union
 
 from ..constants import PRESET_TYPES
-
 
 # ============================================================================
 # LABEL FUNCTION KEYWORD
@@ -55,10 +53,10 @@ def label_preset(preset_type: str, preset_id: int, name: str) -> str:
 
 def label(
     object_type: str,
-    object_id: Union[int, str, List[int]],
+    object_id: int | str | list[int],
     name: str,
     *,
-    end: Optional[int] = None,
+    end: int | None = None,
 ) -> str:
     """
     Construct a Label command to give names to objects.
@@ -112,19 +110,19 @@ def label(
 
 def appearance(
     object_type: str,
-    object_id: Union[int, str, List[int]],
+    object_id: int | str | list[int],
     *,
-    end: Optional[int] = None,
-    source_type: Optional[str] = None,
-    source_id: Optional[Union[int, str]] = None,
+    end: int | None = None,
+    source_type: str | None = None,
+    source_id: int | str | None = None,
     reset: bool = False,
-    color: Optional[str] = None,
-    red: Optional[int] = None,
-    green: Optional[int] = None,
-    blue: Optional[int] = None,
-    hue: Optional[int] = None,
-    saturation: Optional[int] = None,
-    brightness: Optional[int] = None,
+    color: str | None = None,
+    red: int | None = None,
+    green: int | None = None,
+    blue: int | None = None,
+    hue: int | None = None,
+    saturation: int | None = None,
+    brightness: int | None = None,
 ) -> str:
     """
     Construct an Appearance command to change frame/background colors.

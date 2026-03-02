@@ -11,12 +11,10 @@ import pytest
 from src.prompt_parser import (
     ConsolePrompt,
     ListEntry,
-    ListOutput,
-    parse_prompt,
-    parse_list_output,
     _split_location,
+    parse_list_output,
+    parse_prompt,
 )
-
 
 # =========================================================================
 # ConsolePrompt dataclass

@@ -9,7 +9,6 @@ Test Classes:
 - TestAppearanceCommands: Tests for appearance
 """
 
-import pytest
 
 
 class TestLabelCommands:

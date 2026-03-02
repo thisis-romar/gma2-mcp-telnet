@@ -8,7 +8,6 @@ Test Classes:
 - TestMacroPlaceholder: Tests for macro_with_input_after, macro_with_input_before
 """
 
-import pytest
 
 
 class TestMacroPlaceholder:

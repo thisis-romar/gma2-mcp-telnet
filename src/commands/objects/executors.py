@@ -7,14 +7,13 @@ Contains Object Keywords related to Executors:
 Executor is an object type that can contain sequences, chasers, or other objects.
 """
 
-from typing import List, Optional, Union
 
 
 def executor(
-    executor_id: Optional[Union[int, List[int]]] = None,
+    executor_id: int | list[int] | None = None,
     *,
-    end: Optional[int] = None,
-    page: Optional[int] = None,
+    end: int | None = None,
+    page: int | None = None,
 ) -> str:
     """
     Construct an Executor command to reference executors.

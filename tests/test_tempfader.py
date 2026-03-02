@@ -13,7 +13,6 @@ Note: TempFader can be used in two ways:
 2. Standalone to set the temp fader value
 """
 
-import pytest
 
 
 class TestTempFader:
@@ -91,14 +90,14 @@ class TestTempFader:
 
     def test_tempfader_value_with_executor(self):
         """Test tempfader with value and executor: tempfader 50 executor 28"""
-        from src.commands import temp_fader, executor
+        from src.commands import executor, temp_fader
 
         result = f"{temp_fader(50)} {executor(28)}"
         assert result == "tempfader 50 executor 28"
 
     def test_tempfader_value_with_exec(self):
         """Test tempfader with value and exec: tempfader 75 exec 1"""
-        from src.commands import temp_fader, executor
+        from src.commands import executor, temp_fader
 
         result = f"{temp_fader(75)} {executor(1)}"
         assert result == "tempfader 75 executor 1"

@@ -11,7 +11,7 @@ Included functions:
 - store_preset: Store preset
 """
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any
 
 from ..constants import PRESET_TYPES
 from ..helpers import _build_store_options
@@ -19,8 +19,8 @@ from ..helpers import _build_store_options
 
 def store(
     object_type: str,
-    object_id: Union[int, str],
-    name: Optional[str] = None,
+    object_id: int | str,
+    name: str | None = None,
     **options: Any,
 ) -> str:
     """
@@ -52,26 +52,26 @@ def store(
 
 
 def store_cue(
-    cue_id: Optional[int] = None,
-    end: Optional[int] = None,
+    cue_id: int | None = None,
+    end: int | None = None,
     *,
-    ranges: Optional[List[Tuple[int, int]]] = None,
-    name: Optional[str] = None,
+    ranges: list[tuple[int, int]] | None = None,
+    name: str | None = None,
     merge: bool = False,
     overwrite: bool = False,
     remove: bool = False,
     noconfirm: bool = False,
     trackingshield: bool = False,
-    cueonly: Optional[bool] = None,
-    tracking: Optional[bool] = None,
-    keepactive: Optional[bool] = None,
-    addnewcontent: Optional[bool] = None,
-    originalcontent: Optional[bool] = None,
-    effects: Optional[bool] = None,
-    values: Optional[bool] = None,
-    valuetimes: Optional[bool] = None,
-    source: Optional[str] = None,
-    useselection: Optional[str] = None,
+    cueonly: bool | None = None,
+    tracking: bool | None = None,
+    keepactive: bool | None = None,
+    addnewcontent: bool | None = None,
+    originalcontent: bool | None = None,
+    effects: bool | None = None,
+    values: bool | None = None,
+    valuetimes: bool | None = None,
+    source: str | None = None,
+    useselection: str | None = None,
 ) -> str:
     """
     Construct a store cue command with full option support.
@@ -169,10 +169,10 @@ def store_preset(
     noconfirm: bool = False,
     merge: bool = False,
     overwrite: bool = False,
-    presetfilter: Optional[bool] = None,
-    keepactive: Optional[bool] = None,
-    addnewcontent: Optional[bool] = None,
-    originalcontent: Optional[bool] = None,
+    presetfilter: bool | None = None,
+    keepactive: bool | None = None,
+    addnewcontent: bool | None = None,
+    originalcontent: bool | None = None,
 ) -> str:
     """
     Construct a command to store a preset with full option support.

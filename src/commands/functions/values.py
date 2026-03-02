@@ -20,26 +20,25 @@ Included functions:
 - preset_type_at: Set preset type value
 """
 
-from typing import Optional, Union
 
 
 def at(
-    value: Optional[Union[int, float]] = None,
+    value: int | float | None = None,
     *,
-    cue: Optional[int] = None,
-    sequence: Optional[int] = None,
-    fade: Optional[float] = None,
-    delay: Optional[float] = None,
-    layer: Optional[str] = None,
+    cue: int | None = None,
+    sequence: int | None = None,
+    fade: float | None = None,
+    delay: float | None = None,
+    layer: str | None = None,
     ignoreselection: bool = False,
-    values: Optional[bool] = None,
-    valuetimes: Optional[bool] = None,
-    effects: Optional[bool] = None,
+    values: bool | None = None,
+    valuetimes: bool | None = None,
+    effects: bool | None = None,
     disablecolortransform: bool = False,
     prefercolorwheel: bool = False,
     prefermixcolor: bool = False,
     prefercolorboth: bool = False,
-    status: Optional[bool] = None,
+    status: bool | None = None,
 ) -> str:
     """
     Construct an At command to apply values to the current selection.
@@ -156,7 +155,7 @@ def at_zero() -> str:
 
 def attribute_at(
     attribute: str,
-    value: Union[int, float],
+    value: int | float,
 ) -> str:
     """
     Set a specific attribute to a value.
@@ -179,10 +178,10 @@ def attribute_at(
 
 def fixture_at(
     fixture_id: int,
-    value: Optional[Union[int, float]] = None,
+    value: int | float | None = None,
     *,
-    source_fixture: Optional[int] = None,
-    end: Optional[int] = None,
+    source_fixture: int | None = None,
+    end: int | None = None,
 ) -> str:
     """
     Set fixture(s) to a value or copy values from another fixture.
@@ -223,10 +222,10 @@ def fixture_at(
 
 def channel_at(
     channel_id: int,
-    value: Optional[Union[int, float]] = None,
+    value: int | float | None = None,
     *,
-    source_channel: Optional[int] = None,
-    end: Optional[int] = None,
+    source_channel: int | None = None,
+    end: int | None = None,
 ) -> str:
     """
     Set channel(s) to a value or copy values from another channel.
@@ -264,7 +263,7 @@ def channel_at(
 
 def group_at(
     group_id: int,
-    value: Union[int, float],
+    value: int | float,
 ) -> str:
     """
     Select group and set to a value.
@@ -285,7 +284,7 @@ def group_at(
 
 def executor_at(
     executor_id: int,
-    value: Union[int, float],
+    value: int | float,
 ) -> str:
     """
     Set executor fader to a value.
@@ -306,11 +305,11 @@ def executor_at(
 
 def preset_type_at(
     start_type: int,
-    value: Union[int, float],
+    value: int | float,
     *,
-    end_type: Optional[int] = None,
-    fade: Optional[float] = None,
-    delay: Optional[float] = None,
+    end_type: int | None = None,
+    fade: float | None = None,
+    delay: float | None = None,
 ) -> str:
     """
     Apply value/time to preset type range.

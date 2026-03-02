@@ -15,8 +15,9 @@ Uses telnetlib3 (based on asyncio) to replace the deprecated telnetlib module.
 """
 
 import asyncio
+import contextlib
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import telnetlib3
 
@@ -79,9 +80,9 @@ class GMA2TelnetClient:
         self.user = user
         self.password = password
         # telnetlib3 uses reader/writer pattern
-        self._reader: Optional[Any] = None
-        self._writer: Optional[Any] = None
-        self._connection: Optional[Any] = None  # Kept for compatibility checks
+        self._reader: Any | None = None
+        self._writer: Any | None = None
+        self._connection: Any | None = None  # Kept for compatibility checks
 
         logger.debug(
             f"GMA2TelnetClient initialized: host={host}, port={port}, user={user}"
@@ -133,7 +134,7 @@ class GMA2TelnetClient:
             logger.info(f"Successfully connected to {self.host}:{self.port}")
         except Exception as e:
             logger.error(f"Connection failed: {e}")
-            raise ConnectionError(f"Unable to connect to {self.host}:{self.port}: {e}")
+            raise ConnectionError(f"Unable to connect to {self.host}:{self.port}: {e}") from e
 
     async def login(self) -> bool:
         """
@@ -167,7 +168,7 @@ class GMA2TelnetClient:
             logger.debug(f"Login response: {response}")
             logger.info("Login completed (response received)")
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "Login response timeout — could not verify login success. "
                 "grandMA2 may not send a response on successful login, "
@@ -233,10 +234,8 @@ class GMA2TelnetClient:
         logger.debug(f"Sending command with response: {command}")
 
         # Clear any pending data
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(self._reader.read(4096), timeout=0.1)
-        except asyncio.TimeoutError:
-            pass
 
         # Send command
         full_command = f"{command}\r\n"
@@ -260,7 +259,7 @@ class GMA2TelnetClient:
                         timeout = subsequent_timeout
                     else:
                         break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     break
         except Exception as e:
             logger.warning(f"Error reading response: {e}")

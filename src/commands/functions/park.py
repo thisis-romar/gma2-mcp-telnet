@@ -18,13 +18,12 @@ Included functions:
 - unpark: Unlock previously parked DMX channels
 """
 
-from typing import Optional, Union
 
 
 def park(
-    target: Optional[str] = None,
+    target: str | None = None,
     *,
-    at: Optional[Union[int, float]] = None,
+    at: int | float | None = None,
 ) -> str:
     """
     Construct a Park command to lock DMX output values.
@@ -68,7 +67,7 @@ def park(
     return " ".join(parts)
 
 
-def unpark(target: Optional[str] = None) -> str:
+def unpark(target: str | None = None) -> str:
     """
     Construct an Unpark command to unlock previously parked DMX channels.
 

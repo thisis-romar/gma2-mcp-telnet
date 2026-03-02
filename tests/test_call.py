@@ -15,7 +15,6 @@ Options:
     toggle_activation (t) - toggles activation state
 """
 
-import pytest
 
 
 class TestCall:
