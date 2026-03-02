@@ -4,6 +4,15 @@ version = "0.1.0"
 description = "MCP server for controlling grandMA2 lighting consoles via Telnet"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "romar" }]
+keywords = ["grandma2", "mcp", "lighting", "telnet", "dmx"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: System :: Networking",
+]
 dependencies = [
     "mcp>=1.21.0",
     "python-dotenv>=1.0.0",
@@ -18,3 +27,7 @@ dev = [
 
 [project.scripts]
 gma2-mcp = "src.server:main"
+
+[project.urls]
+Repository = "https://github.com/thisis-romar/gma2-mcp-telnet"
+Issues = "https://github.com/thisis-romar/gma2-mcp-telnet/issues"

@@ -1,4 +1,14 @@
+---
+title: GMA2 MCP
+description: MCP server for controlling grandMA2 lighting consoles via Telnet
+version: 1.1.0
+created: 2025-02-27T00:00:00Z
+last_updated: 2026-03-01T00:00:00Z
+---
+
 # GMA2 MCP
+
+[![Tests](https://github.com/thisis-romar/gma2-mcp-telnet/actions/workflows/test.yml/badge.svg)](https://github.com/thisis-romar/gma2-mcp-telnet/actions/workflows/test.yml)
 
 MCP server for controlling grandMA2 lighting consoles via Telnet.
 
@@ -8,7 +18,7 @@ Exposes grandMA2 commands as [Model Context Protocol](https://modelcontextprotoc
 
 ```bash
 # 1. Install
-git clone <repository-url> && cd gma2-mcp-telnet
+git clone https://github.com/thisis-romar/gma2-mcp-telnet && cd gma2-mcp-telnet
 uv sync
 
 # 2. Configure
@@ -633,4 +643,4 @@ make log GMA_HOST=192.168.1.100     # read-only log stream (port 30001)
 
 ## License
 
-Specify your license here.
+[Apache License 2.0](LICENSE)
