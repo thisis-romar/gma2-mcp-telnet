@@ -1,9 +1,9 @@
 ---
 title: GMA2 MCP
 description: MCP server for controlling grandMA2 lighting consoles via Telnet
-version: 1.1.0
+version: 1.2.0
 created: 2025-02-27T00:00:00Z
-last_updated: 2026-03-01T00:00:00Z
+last_updated: 2026-03-03T02:23:03Z
 ---
 
 # GMA2 MCP
@@ -28,7 +28,10 @@ cp .env.template .env        # then edit with your console IP
 uv run python -m src.server  # starts MCP server (stdio transport)
 ```
 
-## Architecture
+<details>
+<summary>🏗️ Architecture</summary>
+
+### Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -73,7 +76,12 @@ uv run python -m src.server  # starts MCP server (stdio transport)
 
 All network I/O is isolated in `telnet_client.py`. Command builders are pure functions that return strings. The navigation layer orchestrates cd/list workflows with parsed telnet feedback.
 
-## Configuration
+</details>
+
+<details>
+<summary>⚙️ Configuration</summary>
+
+### Configuration
 
 Create a `.env` file (see `.env.template`):
 
@@ -92,11 +100,16 @@ LOG_LEVEL=INFO             # default: INFO
 | `standard` | SAFE_READ + SAFE_WRITE allowed; DESTRUCTIVE requires `confirm_destructive=True` |
 | `admin` | All commands allowed without confirmation |
 
-## MCP Tools
+</details>
+
+<details>
+<summary>🔧 MCP Tools</summary>
+
+### MCP Tools
 
 The server exposes 28 tools to MCP clients, grouped by category:
 
-### Navigation & Inspection
+#### Navigation & Inspection
 
 | Tool | Description |
 |------|-------------|
@@ -118,7 +131,7 @@ list            → enumerate objects at current destination
 
 **Dot notation:** MA2 uses `[object-type].[object-id]` for object references (e.g., `Group.1`, `Preset.4.1`, `Sequence.3`).
 
-### Lighting Control
+#### Lighting Control
 
 | Tool | Description |
 |------|-------------|
@@ -131,7 +144,7 @@ list            → enumerate objects at current destination
 | `park_fixture` | Park a fixture/channel at its current or a specified value |
 | `unpark_fixture` | Release a park lock on a fixture/channel |
 
-### Programming
+#### Programming
 
 | Tool | Description |
 |------|-------------|
@@ -144,7 +157,7 @@ list            → enumerate objects at current destination
 | `delete_object` | Delete any object by type and ID (**DESTRUCTIVE**) |
 | `run_macro` | Execute a stored macro by ID |
 
-### Assignment & Layout
+#### Assignment & Layout
 
 | Tool | Description |
 |------|-------------|
@@ -153,7 +166,7 @@ list            → enumerate objects at current destination
 | `edit_object` | Edit, cut, or paste objects (cut/paste **DESTRUCTIVE**) |
 | `remove_content` | Remove content from objects — fixtures, effects, preset types (**DESTRUCTIVE**) |
 
-### Info & Queries
+#### Info & Queries
 
 | Tool | Description |
 |------|-------------|
@@ -162,7 +175,7 @@ list            → enumerate objects at current destination
 | `manage_variable` | Set or add to console variables (global or user-scoped) |
 | `send_raw_command` | Send any MA command directly (safety-gated, see below) |
 
-### Claude Desktop Registration
+#### Claude Desktop Registration
 
 Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
@@ -182,7 +195,12 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 }
 ```
 
-## Console Navigation & Prompt Parsing
+</details>
+
+<details>
+<summary>🧭 Console Navigation & Prompt Parsing</summary>
+
+### Console Navigation & Prompt Parsing
 
 The navigation system combines three layers to discover console state via telnet:
 
@@ -190,7 +208,7 @@ The navigation system combines three layers to discover console state via telnet
 2. **Telnet client** sends the command and captures the raw response
 3. **Prompt parser** extracts the current location from the response
 
-### Prompt Parsing
+#### Prompt Parsing
 
 The parser detects MA2 console prompts using multiple patterns:
 
@@ -204,7 +222,7 @@ The parser detects MA2 console prompts using multiple patterns:
 
 When no recognizable prompt is found, the raw response is preserved for manual inspection.
 
-### List Output Parsing
+#### List Output Parsing
 
 After cd-ing into a destination, `list` returns tabular output with column headers followed by data rows. The parser automatically detects headers and maps column values to named fields.
 
@@ -230,11 +248,16 @@ After cd-ing into a destination, `list` returns tabular output with column heade
 
 Root-level entries use `key=value` format (parsed automatically), while tabular entries use positional columns aligned to the header row.
 
-## Tree Scanner
+</details>
+
+<details>
+<summary>🌳 Tree Scanner</summary>
+
+### Tree Scanner
 
 `scripts/scan_tree.py` recursively walks the grandMA2 object tree via Telnet, building a complete JSON map of every node, child, and leaf in the console's internal data structure.
 
-### How It Works
+#### How It Works
 
 1. `cd /` -- navigate to root
 2. `list` -- enumerate children (get valid indexes + full column output)
@@ -243,7 +266,7 @@ Root-level entries use `key=value` format (parsed automatically), while tabular 
 5. Recurse until `list` returns 0 entries (leaf) or max depth is reached
 6. `cd ..` / `cd /` -- return to parent between branches
 
-### Usage
+#### Usage
 
 ```bash
 # Quick scan (depth 4, for testing)
@@ -256,7 +279,7 @@ uv run python scripts/scan_tree.py --max-depth 20 --output scan_full.json
 uv run python scripts/scan_tree.py --max-depth 20 --output scan_full.json --resume
 ```
 
-### Scanner Options
+#### Scanner Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -279,7 +302,7 @@ uv run python scripts/scan_tree.py --max-depth 20 --output scan_full.json --resu
 | `--branch-timeout` | 0 | Per-branch timeout in seconds (0 = unlimited) |
 | `--disconnect-timeout` | 5 | Timeout for telnet disconnect in seconds |
 
-### Speed Optimizations
+#### Speed Optimizations
 
 The scanner includes several optimizations to handle large trees (7000+ nodes):
 
@@ -289,7 +312,7 @@ The scanner includes several optimizations to handle large trees (7000+ nodes):
 - **Consecutive empty leaf early exit** -- Stops scanning a branch after 10 consecutive empty slots
 - **Subsequent-read timeout** -- Reduced from 0.3s to 0.1s per telnet read, saving ~100 min across a full scan
 
-### Resilience Features
+#### Resilience Features
 
 - **Auto-reconnect** -- Detects dead connections (empty responses) and reconnects with full path recovery
 - **Progressive save** -- Writes completed branches to a JSONL file after each root branch, preventing data loss on interruption
@@ -299,7 +322,12 @@ The scanner includes several optimizations to handle large trees (7000+ nodes):
 - **Disconnect timeout** -- Wraps telnet disconnect in a timeout to prevent process hangs from stale connections
 - **Progress file hygiene** -- Fresh (non-resume) runs truncate the progress file to avoid mixing data from prior runs
 
-## Command Builder Reference
+</details>
+
+<details>
+<summary>📖 Command Builder Reference</summary>
+
+### Command Builder Reference
 
 The command builder (`src/commands/`) generates grandMA2 command strings without any network I/O. All functions are pure and return `str`. There are 100+ exported functions covering navigation, selection, playback, values, store, delete, assign, label, info, park, call, variables, and more.
 
@@ -308,7 +336,7 @@ grandMA2 syntax: `[Function] [Object]` -- keywords are classified as **Function*
 <details>
 <summary>Full command builder reference (click to expand)</summary>
 
-### Navigation (ChangeDest)
+#### Navigation (ChangeDest)
 
 | Function | Output |
 |----------|--------|
@@ -320,7 +348,7 @@ grandMA2 syntax: `[Function] [Object]` -- keywords are classified as **Function*
 | `changedest("Preset", "4.1")` | `cd Preset.4.1` |
 | `changedest("Group")` | `cd Group` |
 
-### Object Keywords
+#### Object Keywords
 
 | Function | Example | Output |
 |----------|---------|--------|
@@ -340,7 +368,7 @@ grandMA2 syntax: `[Function] [Object]` -- keywords are classified as **Function*
 | `timecode(1)` | Reference a timecode show | `timecode 1` |
 | `timer(1)` | Reference a timer | `timer 1` |
 
-### Selection & Clear
+#### Selection & Clear
 
 | Function | Output |
 |----------|--------|
@@ -351,7 +379,7 @@ grandMA2 syntax: `[Function] [Object]` -- keywords are classified as **Function*
 | `clear_active()` | `clearactive` |
 | `clear_all()` | `clearall` |
 
-### Store
+#### Store
 
 | Function | Output |
 |----------|--------|
@@ -362,7 +390,7 @@ grandMA2 syntax: `[Function] [Object]` -- keywords are classified as **Function*
 
 Store options: `merge`, `overwrite`, `remove`, `noconfirm`, `cueonly`, `tracking`, `source`, and more.
 
-### Playback
+#### Playback
 
 | Function | Output |
 |----------|--------|
@@ -378,7 +406,7 @@ Store options: `merge`, `overwrite`, `remove`, `noconfirm`, `cueonly`, `tracking
 | `def_go_back()` | `goback-` |
 | `def_go_pause()` | `pause` |
 
-### At (Values)
+#### At (Values)
 
 `At` can function as both a Function Keyword and a Helping Keyword.
 
@@ -397,7 +425,7 @@ Store options: `merge`, `overwrite`, `remove`, `noconfirm`, `cueonly`, `tracking
 | `executor_at(3, 50)` | `executor 3 at 50` |
 | `preset_type_at(2, 50, end_type=9)` | `presettype 2 thru 9 at 50` |
 
-### Copy, Move, Cut, Paste
+#### Copy, Move, Cut, Paste
 
 | Function | Output |
 |----------|--------|
@@ -410,7 +438,7 @@ Store options: `merge`, `overwrite`, `remove`, `noconfirm`, `cueonly`, `tracking
 
 Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 
-### Delete & Remove
+#### Delete & Remove
 
 | Function | Output |
 |----------|--------|
@@ -425,7 +453,7 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 | `remove_fixture(1, if_filter="PresetType 1")` | `remove fixture 1 if PresetType 1` |
 | `remove_effect(1)` | `remove effect 1` |
 
-### Assign
+#### Assign
 
 | Function | Output |
 |----------|--------|
@@ -438,7 +466,7 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 | `empty("executor", 1)` | `empty executor 1` |
 | `temp_fader("executor", 1)` | `temp_fader executor 1` |
 
-### Label & Appearance
+#### Label & Appearance
 
 | Function | Output |
 |----------|--------|
@@ -448,7 +476,7 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 | `appearance("preset", "0.1", red=100)` | `appearance preset 0.1 /r=100` |
 | `appearance("group", 1, color="FF0000")` | `appearance group 1 /color=FF0000` |
 
-### Info & List
+#### Info & List
 
 | Function | Output |
 |----------|--------|
@@ -458,7 +486,7 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 | `info("cue", 1)` | `info cue 1` |
 | `info_group(3)` | `info group 3` |
 
-### Park & Unpark
+#### Park & Unpark
 
 | Function | Output |
 |----------|--------|
@@ -466,14 +494,14 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 | `park("dmx", 101, value=128)` | `park dmx 101 at 128` |
 | `unpark("fixture", 1)` | `unpark fixture 1` |
 
-### Call
+#### Call
 
 | Function | Output |
 |----------|--------|
 | `call("preset", "2.1")` | `call preset 2.1` |
 | `call("cue", 3, sequence=1)` | `call cue 3 sequence 1` |
 
-### Variables
+#### Variables
 
 | Function | Output |
 |----------|--------|
@@ -482,7 +510,7 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 | `add_var("counter", 1)` | `addvar "counter" 1` |
 | `add_user_var("counter", 1)` | `adduservar "counter" 1` |
 
-### Helping Keywords
+#### Helping Keywords
 
 | Function | Output |
 |----------|--------|
@@ -495,7 +523,7 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 | `condition_and("group", 1)` | `and group 1` |
 | `if_condition("PresetType", 1)` | `if PresetType 1` |
 
-### Macro Placeholder (@)
+#### Macro Placeholder (@)
 
 The `@` character is a placeholder for user input in macros (distinct from the `At` keyword).
 
@@ -506,9 +534,14 @@ The `@` character is a placeholder for user input in macros (distinct from the `
 
 </details>
 
-## Safety System
+</details>
 
-### Risk Tiers
+<details>
+<summary>🛡️ Safety System</summary>
+
+### Safety System
+
+#### Risk Tiers
 
 The `src/vocab.py` module classifies all grandMA2 keywords into risk tiers:
 
@@ -519,7 +552,7 @@ The `src/vocab.py` module classifies all grandMA2 keywords into risk tiers:
 | `DESTRUCTIVE` | Data mutation or loss | Delete, Store, Copy, Move, Shutdown |
 | `UNKNOWN` | Unrecognized token | -- |
 
-### Runtime Safety Gate
+#### Runtime Safety Gate
 
 The `send_raw_command` tool enforces safety at runtime before any command reaches the console:
 
@@ -545,17 +578,22 @@ result = classify_token("li", spec)
 
 The vocabulary is sourced from `src/grandMA2_v3_9_telnet_keyword_vocabulary.json` (grandMA2 v3.9).
 
-## VS Code MCP Provider
+</details>
+
+<details>
+<summary>💻 VS Code MCP Provider</summary>
+
+### VS Code MCP Provider
 
 The `vscode-mcp-provider/` directory contains a VS Code extension that registers the grandMA2 MCP server for AI assistant discovery.
 
-### Features
+#### Features
 
 - Registers the MCP server via the Model Context Protocol stdio transport
 - Compatible with Claude, GitHub Copilot (when MCP-supported), and other MCP-aware assistants
 - Launches the server using `uv run python -m src.server` in the workspace
 
-### Setup
+#### Setup
 
 ```bash
 cd vscode-mcp-provider
@@ -564,7 +602,12 @@ npm run compile
 # Then install the extension in VS Code (F5 to debug, or package with vsce)
 ```
 
-## Project Structure
+</details>
+
+<details>
+<summary>📁 Project Structure</summary>
+
+### Project Structure
 
 ```
 gma2-mcp-telnet/
@@ -598,7 +641,12 @@ gma2-mcp-telnet/
 └── uv.lock
 ```
 
-## Dependencies
+</details>
+
+<details>
+<summary>📦 Dependencies</summary>
+
+### Dependencies
 
 | Package | Purpose |
 |---------|---------|
@@ -610,9 +658,14 @@ gma2-mcp-telnet/
 
 Requires Python >= 3.12.
 
-## Development
+</details>
 
-### Running Tests
+<details>
+<summary>🧪 Development</summary>
+
+### Development
+
+#### Running Tests
 
 ```bash
 make test                           # or: uv run pytest -v
@@ -620,26 +673,33 @@ uv run pytest tests/test_vocab.py   # run a specific file
 uv run pytest --cov=src tests/      # with coverage
 ```
 
-### Login Test
+#### Login Test
 
 ```bash
 python scripts/main.py              # test Telnet connection to console
 ```
 
-### Direct Telnet
+#### Direct Telnet
 
 ```bash
 make server                         # interactive session via connect.sh
 make log GMA_HOST=192.168.1.100     # read-only log stream (port 30001)
 ```
 
-## Troubleshooting
+</details>
+
+<details>
+<summary>🔍 Troubleshooting</summary>
+
+### Troubleshooting
 
 **Connection fails** -- Verify console IP/port, check Telnet is enabled on the console, check firewall rules. Try `make server` for a raw connection test.
 
 **Authentication errors** -- Confirm username/password, check the user exists on the console, ensure `.env` has no extra spaces.
 
 **Command not working** -- Verify syntax against the grandMA2 User Manual. Ensure referenced objects (fixtures, groups, presets) exist in the show file.
+
+</details>
 
 ## License
 
