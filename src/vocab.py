@@ -6,9 +6,10 @@ Design goals
 - Keep aliases/shortcuts as a separate overlay (runtime-authoritative via CmdHelp).
 - Provide deterministic token normalization + classification hooks for safety middleware.
 - Provide first-class handling for ChangeDest/CD and List/List*.
+- Categorize keywords into Object, Function, Helping, and Special Char groups.
 
 Files
-- Vendored full keyword set JSON:
+- Vendored full keyword set JSON (schema v2.0):
   - grandMA2_v3_9_telnet_keyword_vocabulary.json
 """
 
@@ -19,7 +20,7 @@ import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 logger = logging.getLogger(__name__)
@@ -47,25 +48,6 @@ def _norm_token(tok: str) -> str:
     return tok.lower()
 
 
-def _load_keywords_from_json(path: str) -> list[str]:
-    """
-    Load the keyword list from the vendored JSON file.
-
-    Raises:
-        FileNotFoundError: If the keyword vocabulary JSON file is missing.
-        json.JSONDecodeError: If the JSON file is malformed.
-    """
-    if not os.path.isfile(path):
-        raise FileNotFoundError(
-            f"grandMA2 keyword vocabulary file not found: {path}. "
-            "Ensure grandMA2_v3_9_telnet_keyword_vocabulary.json is present "
-            "alongside vocab.py in the src/ directory."
-        )
-    with open(path, encoding="utf-8") as f:
-        payload = json.load(f)
-    return list(payload.get("keywords", []))
-
-
 # =============================================================================
 # Safety tiers (middleware hooks)
 # =============================================================================
@@ -88,6 +70,14 @@ class KeywordKind(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+class KeywordCategory(StrEnum):
+    """Vocabulary-level category for a keyword."""
+    OBJECT = "OBJECT"
+    FUNCTION = "FUNCTION"
+    HELPING = "HELPING"
+    SPECIAL_CHAR = "SPECIAL_CHAR"
+
+
 # Explicit set of known special-character entry names from the MA keyword list.
 # Using an explicit set instead of a regex (fixes V4: regex was overly broad).
 _SPECIAL_CHAR_ENTRIES = frozenset({
@@ -99,6 +89,33 @@ _SPECIAL_CHAR_ENTRIES = frozenset({
     "minus -",
 })
 
+
+# =============================================================================
+# Data structures for vocabulary payload (JSON schema v2.0)
+# =============================================================================
+
+@dataclass(frozen=True)
+class ObjectKeywordEntry:
+    """Metadata for an Object Keyword from the vocabulary JSON."""
+    keyword: str
+    canonical: str
+    context_change: bool
+    notes: str = ""
+
+
+@dataclass(frozen=True)
+class VocabPayload:
+    """Parsed vocabulary payload from JSON (schema v2.0)."""
+    object_keywords: list[ObjectKeywordEntry]
+    function_keywords: list[str]
+    helping_keywords: list[str]
+    special_chars: list[str]
+    aliases: dict[str, str]
+
+
+# =============================================================================
+# VocabSpec: full vocabulary + overlays
+# =============================================================================
 
 @dataclass(frozen=True)
 class VocabSpec:
@@ -126,6 +143,64 @@ class VocabSpec:
     safe_write: set[str]
     destructive: set[str]
 
+    # Object keyword metadata
+    object_keywords: frozenset[str] = field(default_factory=frozenset)
+    object_keyword_entries: Mapping[str, ObjectKeywordEntry] = field(
+        default_factory=dict,
+    )
+
+    # Keyword category map (canonical spelling -> category)
+    keyword_categories: Mapping[str, KeywordCategory] = field(
+        default_factory=dict,
+    )
+
+
+# =============================================================================
+# JSON loader (schema v2.0)
+# =============================================================================
+
+def _load_keywords_from_json(path: str) -> VocabPayload:
+    """
+    Load the keyword vocabulary from the vendored JSON file (schema v2.0).
+
+    The JSON file contains categorized keywords:
+    - object_keywords: list of objects with keyword, canonical, context_change, notes
+    - function_keywords: flat list of function keyword strings
+    - helping_keywords: flat list of helping keyword strings
+    - special_chars: flat list of special character entry strings
+    - aliases: dict mapping alias -> canonical target
+
+    Raises:
+        FileNotFoundError: If the keyword vocabulary JSON file is missing.
+        json.JSONDecodeError: If the JSON file is malformed.
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"grandMA2 keyword vocabulary file not found: {path}. "
+            "Ensure grandMA2_v3_9_telnet_keyword_vocabulary.json is present "
+            "alongside vocab.py in the src/ directory."
+        )
+    with open(path, encoding="utf-8") as f:
+        payload = json.load(f)
+
+    # Parse object keywords (rich entries)
+    object_keywords = []
+    for entry in payload.get("object_keywords", []):
+        object_keywords.append(ObjectKeywordEntry(
+            keyword=entry["keyword"],
+            canonical=entry.get("canonical", entry["keyword"]),
+            context_change=entry.get("context_change", True),
+            notes=entry.get("notes", ""),
+        ))
+
+    return VocabPayload(
+        object_keywords=object_keywords,
+        function_keywords=list(payload.get("function_keywords", [])),
+        helping_keywords=list(payload.get("helping_keywords", [])),
+        special_chars=list(payload.get("special_chars", [])),
+        aliases=dict(payload.get("aliases", {})),
+    )
+
 
 # =============================================================================
 # Build the v3.9 spec
@@ -134,17 +209,51 @@ class VocabSpec:
 def build_v39_spec(
     keyword_json_path: str = DEFAULT_V39_KEYWORD_JSON,
 ) -> VocabSpec:
-    raw_keywords = _load_keywords_from_json(keyword_json_path)
+    vocab = _load_keywords_from_json(keyword_json_path)
 
-    # Build canonical presence vocabulary (normalized) and a reverse map
-    canonical = set()
+    # Build canonical presence vocabulary (normalized) and reverse map
+    canonical: set[str] = set()
     normalized_to_canonical: dict[str, str] = {}
-    for k in raw_keywords:
-        norm = _norm_token(k)
+    keyword_categories: dict[str, KeywordCategory] = {}
+    object_keyword_entries: dict[str, ObjectKeywordEntry] = {}
+    object_kw_canonicals: set[str] = set()
+
+    # ---- Object Keywords (processed first; take category precedence)
+    for entry in vocab.object_keywords:
+        norm = _norm_token(entry.canonical)
         canonical.add(norm)
-        # Keep the first spelling seen (the JSON should have canonical spellings)
         if norm not in normalized_to_canonical:
-            normalized_to_canonical[norm] = k
+            normalized_to_canonical[norm] = entry.canonical
+        keyword_categories[entry.canonical] = KeywordCategory.OBJECT
+        object_keyword_entries[entry.canonical] = entry
+        object_kw_canonicals.add(entry.canonical)
+
+    # ---- Function Keywords
+    for kw in vocab.function_keywords:
+        norm = _norm_token(kw)
+        canonical.add(norm)
+        if norm not in normalized_to_canonical:
+            normalized_to_canonical[norm] = kw
+        # Only set category if not already claimed by Object
+        if kw not in keyword_categories:
+            keyword_categories[kw] = KeywordCategory.FUNCTION
+
+    # ---- Helping Keywords
+    for kw in vocab.helping_keywords:
+        norm = _norm_token(kw)
+        canonical.add(norm)
+        if norm not in normalized_to_canonical:
+            normalized_to_canonical[norm] = kw
+        if kw not in keyword_categories:
+            keyword_categories[kw] = KeywordCategory.HELPING
+
+    # ---- Special chars
+    for kw in vocab.special_chars:
+        norm = _norm_token(kw)
+        canonical.add(norm)
+        if norm not in normalized_to_canonical:
+            normalized_to_canonical[norm] = kw
+        keyword_categories[kw] = KeywordCategory.SPECIAL_CHAR
 
     # ---- ChangeDest/CD overlay
     changedest_aliases = {
@@ -157,13 +266,16 @@ def build_v39_spec(
         "/": "ROOT",
     }
 
-    # ---- Alias overlay (shortcuts, convenience tokens)
+    # ---- Alias overlay (shortcuts + JSON-defined aliases)
     aliases: dict[str, str] = {
         _norm_token("li"): "List",
         _norm_token("listef"): "ListEffectLibrary",
         _norm_token("listm"): "ListMacroLibrary",
         _norm_token("listp"): "ListPluginLibrary",
     }
+    # Add JSON-defined aliases (DMX->Dmx, DMXUniverse->DmxUniverse, etc.)
+    for alias_name, canonical_target in vocab.aliases.items():
+        aliases[_norm_token(alias_name)] = canonical_target
 
     # ---- Safety tier defaults
     # NOTE: "Blackout" is classified as SAFE_WRITE because it is a toggle
@@ -185,6 +297,9 @@ def build_v39_spec(
         "SelFix", "DefGoBack", "DefGoForward", "DefGoPause",
         "GoFastBack", "GoFastForward", "Oops", "Call",
     }
+    # All Object Keywords are SAFE_WRITE (they change programmer context)
+    safe_write |= object_kw_canonicals
+
     destructive = {
         "Delete", "Store", "Copy", "Move", "Update", "Edit",
         "Assign", "Label", "Appearance", "Import", "Export",
@@ -203,6 +318,9 @@ def build_v39_spec(
         safe_read=set(safe_read),
         safe_write=set(safe_write),
         destructive=set(destructive),
+        object_keywords=frozenset(object_kw_canonicals),
+        object_keyword_entries=object_keyword_entries,
+        keyword_categories=keyword_categories,
     )
 
 
@@ -217,6 +335,7 @@ class ResolvedToken:
     kind: KeywordKind
     canonical: str | None
     risk: RiskTier
+    category: KeywordCategory | None = None
 
 
 def classify_token(tok: str, spec: VocabSpec) -> ResolvedToken:
@@ -241,6 +360,7 @@ def classify_token(tok: str, spec: VocabSpec) -> ResolvedToken:
             kind=KeywordKind.KEYWORD,
             canonical=canonical,
             risk=_risk_for_canonical(canonical, spec),
+            category=spec.keyword_categories.get(canonical),
         )
 
     # ChangeDest alias overlay
@@ -252,6 +372,7 @@ def classify_token(tok: str, spec: VocabSpec) -> ResolvedToken:
             kind=KeywordKind.KEYWORD,
             canonical=canonical,
             risk=_risk_for_canonical(canonical, spec),
+            category=spec.keyword_categories.get(canonical),
         )
 
     # Canonical presence check (from "All keywords")
@@ -263,6 +384,7 @@ def classify_token(tok: str, spec: VocabSpec) -> ResolvedToken:
             kind=_kind_for_normalized(n),
             canonical=canonical,
             risk=_risk_for_canonical(canonical, spec),
+            category=spec.keyword_categories.get(canonical),
         )
 
     return ResolvedToken(
