@@ -7,3 +7,8 @@ log:
 
 test:
 	uv run pytest -v
+
+install-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit
+	@echo "Git hooks installed. Pre-commit will auto-update the RAG index."
