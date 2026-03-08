@@ -33,6 +33,7 @@ def list_objects(
     end: int | None = None,
     filename: str | None = None,
     condition: str | None = None,
+    quiet: bool = False,
 ) -> str:
     """
     Construct a List command to display show data in the command line feedback window.
@@ -46,6 +47,7 @@ def list_objects(
         end: End ID for range (uses Thru)
         filename: Output CSV filename (saved to reports folder)
         condition: Condition filter (only for Messages)
+        quiet: Suppress command feedback in the command line response area
 
     Returns:
         str: MA List command
@@ -84,6 +86,9 @@ def list_objects(
 
     if condition:
         cmd = f"{cmd} /condition={condition}"
+
+    if quiet:
+        cmd = f"{cmd} /quiet"
 
     return cmd
 
@@ -431,13 +436,18 @@ def info_preset(
 
     Examples:
         >>> info_preset("color", 1)
-        'info preset 2.1'
+        'info preset 4.1'
         >>> info_preset(4, 5, text="deep blue")
         'info preset 4.5 "deep blue"'
     """
     # Convert preset type
     if isinstance(preset_type, str):
-        type_num = PRESET_TYPES.get(preset_type.lower(), preset_type)
+        type_num = PRESET_TYPES.get(preset_type.lower())
+        if type_num is None:
+            raise ValueError(
+                f"Unknown preset type: {preset_type!r}. "
+                f"Valid types: {', '.join(PRESET_TYPES)}"
+            )
     else:
         type_num = preset_type
 

@@ -269,3 +269,12 @@ class TestInfoCommands:
 
         result = info_preset(4, 5, text="deep blue")
         assert result == 'info preset 4.5 "deep blue"'
+
+    def test_info_preset_invalid_type_raises(self):
+        """Test info preset with invalid type name raises ValueError."""
+        import pytest
+
+        from src.commands import info_preset
+
+        with pytest.raises(ValueError, match="Unknown preset type"):
+            info_preset("invalid", 1)

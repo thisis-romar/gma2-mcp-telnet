@@ -3,7 +3,7 @@ title: GMA2 MCP
 description: MCP server for controlling grandMA2 lighting consoles via Telnet
 version: 1.2.0
 created: 2025-02-27T00:00:00Z
-last_updated: 2026-03-02T00:00:00Z
+last_updated: 2026-03-02T23:45:00Z
 ---
 
 # GMA2 MCP
@@ -107,13 +107,15 @@ The server exposes 28 tools to MCP clients, grouped by category:
 | `scan_console_indexes` | Batch scan numeric indexes at any tree level |
 
 ```
-cd /            → go to root
-cd ..           → go up one level
-cd Group.1      → navigate to Group 1 (dot notation)
-cd 5            → navigate by element index
-cd "MySeq"      → navigate by name
+cd /            → go to root                      (ChangeDest /)
+cd ..           → go up one level                 (ChangeDest ..)
+cd Group.1      → navigate to Group 1             (ChangeDest Group.1)
+cd 5            → navigate by element index        (ChangeDest 5)
+cd "MySeq"      → navigate by name                (ChangeDest "MySeq")
 list            → enumerate objects at current destination
 ```
+
+> `cd` is the console alias for `ChangeDest` (Change Destination). Both forms are interchangeable on the grandMA2 command line.
 
 **Workflow:** Use `navigate_console` to cd into a location, then `list_console_destination` to enumerate children. Both return JSON with raw telnet responses and parsed structure (object-type, object-id, element name).
 
@@ -237,12 +239,42 @@ Root-level entries use `key=value` format (parsed automatically), while tabular 
 
 ### How It Works
 
+> **Note:** `cd` is the console alias for the `ChangeDest` (Change Destination) keyword. All `cd` commands below are equivalent to their `ChangeDest` form (e.g., `cd /` = `ChangeDest /`).
+
 1. `cd /` -- navigate to root
 2. `list` -- enumerate children (get valid indexes + full column output)
-3. `cd N` -- enter each child by index
+3. `cd N` -- enter each child by element index (where N comes from the `list` output)
 4. `list` -- capture raw output (headers + columns + values)
 5. Recurse until `list` returns 0 entries (leaf) or max depth is reached
 6. `cd ..` / `cd /` -- return to parent between branches
+
+**Worked example -- navigating by element index:**
+
+```
+[Channel]> cd /                          # go to root
+[Channel]> list                          # enumerate children at current destination
+  Settings  3  Agenda=Running (6)
+  Patch  4  ...
+  Programmer  5  ...
+  ...
+
+[Channel]> cd 3                          # enter Settings (element index 3)
+[Settings]> list                         # enumerate Settings children
+  Network  1  ...
+  Console  2  ...
+  ...
+
+[Settings]> cd 1                         # enter Network (element index 1)
+[Network 1]> list                        # leaf -- capture columns
+  ...
+
+[Network 1]> cd ..                       # return to Settings
+[Settings]> cd ..                        # return to root
+```
+
+> The prompt after `cd /` reflects the current default keyword (e.g., `[Channel]>`, `[Fixture]>`, `[Macro]>`). Use `list` to enumerate children at the current destination.
+
+Each `cd N` uses the element index shown in the `list` output (the number after the object type name). If the index doesn't exist, the console returns Error #72 and the location stays unchanged.
 
 ### Usage
 
@@ -464,7 +496,7 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 | Function | Output |
 |----------|--------|
 | `park("fixture", 1)` | `park fixture 1` |
-| `park("dmx", 101, value=128)` | `park dmx 101 at 128` |
+| `park("dmx 101", at=128)` | `park dmx 101 at 128` |
 | `unpark("fixture", 1)` | `unpark fixture 1` |
 
 ### Call
@@ -478,23 +510,23 @@ Copy/Move options: `overwrite`, `merge`, `status`, `cueonly`, `noconfirm`
 
 | Function | Output |
 |----------|--------|
-| `set_var("myvar", 42)` | `setvar "myvar" 42` |
-| `set_user_var("speed", 100)` | `setuservar "speed" 100` |
-| `add_var("counter", 1)` | `addvar "counter" 1` |
-| `add_user_var("counter", 1)` | `adduservar "counter" 1` |
+| `set_var("$myvar", 42)` | `setvar $myvar = 42` |
+| `set_user_var("$speed", 100)` | `setuservar $speed = 100` |
+| `add_var("$counter", 1)` | `addvar $counter = 1` |
+| `add_user_var("$counter", 1)` | `adduservar $counter = 1` |
 
 ### Helping Keywords
 
 | Function | Output |
 |----------|--------|
-| `at_relative(10)` | `+ 10` |
-| `at_relative(-5)` | `- 5` |
-| `add_to_selection("fixture", 5)` | `+ fixture 5` |
-| `remove_from_selection("fixture", 3)` | `- fixture 3` |
+| `at_relative(10)` | `at + 10` |
+| `at_relative(-5)` | `at - 5` |
+| `add_to_selection(5)` | `+ 5` |
+| `remove_from_selection(3)` | `- 3` |
 | `page_next()` | `page +` |
 | `page_previous()` | `page -` |
-| `condition_and("group", 1)` | `and group 1` |
-| `if_condition("PresetType", 1)` | `if PresetType 1` |
+| `condition_and("group 1", "group 2")` | `group 1 and group 2` |
+| `if_condition("PresetType 1")` | `if PresetType 1` |
 
 ### Macro Placeholder (@)
 

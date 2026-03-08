@@ -1288,7 +1288,7 @@ class TestManageVariableTool:
         )
         data = json.loads(result)
 
-        assert data["command_sent"] == "setvar myvar = 42"
+        assert data["command_sent"] == "setvar $myvar = 42"
 
     @pytest.mark.asyncio
     @patch("src.server.get_client")
@@ -1305,7 +1305,7 @@ class TestManageVariableTool:
         )
         data = json.loads(result)
 
-        assert data["command_sent"] == "setuservar speed = 100"
+        assert data["command_sent"] == "setuservar $speed = 100"
 
     @pytest.mark.asyncio
     @patch("src.server.get_client")
@@ -1322,7 +1322,7 @@ class TestManageVariableTool:
         )
         data = json.loads(result)
 
-        assert data["command_sent"] == "addvar counter = 1"
+        assert data["command_sent"] == "addvar $counter = 1"
 
     @pytest.mark.asyncio
     @patch("src.server.get_client")
@@ -1339,7 +1339,75 @@ class TestManageVariableTool:
         )
         data = json.loads(result)
 
-        assert data["command_sent"] == "adduservar counter = 1"
+        assert data["command_sent"] == "adduservar $counter = 1"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_dollar_prefix_auto_added(self, mock_get_client):
+        """Test that $ is auto-prepended when not present."""
+        from src.server import manage_variable
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+
+        result = await manage_variable(
+            action="set", scope="global", var_name="myvar", value=42
+        )
+        data = json.loads(result)
+        assert data["command_sent"] == "setvar $myvar = 42"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_dollar_prefix_passthrough(self, mock_get_client):
+        """Test that $ is not doubled when already present."""
+        from src.server import manage_variable
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+
+        result = await manage_variable(
+            action="set", scope="global", var_name="$myvar", value=42
+        )
+        data = json.loads(result)
+        assert data["command_sent"] == "setvar $myvar = 42"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_global_vars(self, mock_get_client):
+        """Test listing global variables."""
+        from src.server import manage_variable
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="$counter = 5\n$name = \"John\""
+        )
+        mock_get_client.return_value = mock_client
+
+        result = await manage_variable(
+            action="list", scope="global", var_name=""
+        )
+        data = json.loads(result)
+        assert data["command_sent"] == "listvar"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_user_vars(self, mock_get_client):
+        """Test listing user variables."""
+        from src.server import manage_variable
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="$speed = 100"
+        )
+        mock_get_client.return_value = mock_client
+
+        result = await manage_variable(
+            action="list", scope="user", var_name=""
+        )
+        data = json.loads(result)
+        assert data["command_sent"] == "listuservar"
 
     @pytest.mark.asyncio
     async def test_add_without_value(self):

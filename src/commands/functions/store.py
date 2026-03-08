@@ -30,7 +30,7 @@ def store(
         object_type: The type of object to store (e.g., "macro", "effect")
         object_id: The ID or identifier of the object
         name: Optional name for the stored object
-        **options: Store options (merge, overwrite, noconfirm, etc.)
+        **options: Store options (merge, overwrite, noconfirm, quiet, etc.)
 
     Returns:
         str: MA command to store the object
@@ -40,6 +40,8 @@ def store(
         'store macro 5'
         >>> store("macro", 5, name="Reset All")
         'store macro 5 "Reset All"'
+        >>> store("macro", 5, quiet=True)
+        'store macro 5 /quiet'
     """
     cmd = f"store {object_type} {object_id}"
 
@@ -61,6 +63,7 @@ def store_cue(
     overwrite: bool = False,
     remove: bool = False,
     noconfirm: bool = False,
+    quiet: bool = False,
     trackingshield: bool = False,
     cueonly: bool | None = None,
     tracking: bool | None = None,
@@ -85,6 +88,7 @@ def store_cue(
         overwrite: Remove stored values and store new values
         remove: Remove stored values for attributes with active values
         noconfirm: Suppress store confirmation pop-up
+        quiet: Suppress command feedback in the command line response area
         trackingshield: Use tracking shield for store
         cueonly: Prevent changes to track forward (True/False)
         tracking: Store with tracking
@@ -128,6 +132,7 @@ def store_cue(
         overwrite=overwrite,
         remove=remove,
         noconfirm=noconfirm,
+        quiet=quiet,
         trackingshield=trackingshield,
         cueonly=cueonly,
         tracking=tracking,
