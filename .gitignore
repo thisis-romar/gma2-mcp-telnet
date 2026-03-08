@@ -17,6 +17,9 @@ __pycache__/
 # augment
 .augment/
 
+# Claude Code — machine-specific, never commit
+.claude/settings.local.json
+
 # Node
 node_modules/
 

@@ -1,9 +1,9 @@
 ---
 title: Project Rules
 description: Agent conventions and standards for the gma2-mcp-telnet repository
-version: 1.0.0
+version: 1.2.0
 created: 2026-03-01T00:00:00Z
-last_updated: 2026-03-01T00:00:00Z
+last_updated: 2026-03-07T00:00:00Z
 ---
 
 # Project Rules
@@ -38,3 +38,51 @@ created: YYYY-MM-DDTHH:MM:SSZ
 last_updated: YYYY-MM-DDTHH:MM:SSZ
 ---
 ```
+
+---
+
+## Project Identity
+
+- **Canonical local path:** `C:\Users\romar\gma2-mcp-telnet`
+- **Remote:** `https://github.com/thisis-romar/gma2-mcp-telnet.git`
+- **Note:** A secondary clone exists at `C:\Users\romar\onPC-Telnet-mcp` pointing to the same remote. Always work in `gma2-mcp-telnet` unless explicitly told otherwise.
+
+---
+
+## Development Workflow
+
+### Running tests
+```bash
+uv run pytest --tb=short -q
+```
+- Expected baseline on `main`: **754 passed, 27 skipped** (live telnet tests skip without a console)
+- Never force live tests to run; the skip is intentional
+
+### Dependency management
+```bash
+uv sync   # install/update all deps including dev
+```
+
+### Never commit
+- `.claude/settings.local.json` — machine-specific Claude Code permissions, always keep out of commits
+
+### Branch conventions
+- Feature branches branch from `main`
+- Remote branches `claude/*` are Claude-authored; `copilot/*` are Copilot-authored
+- After merging a branch: delete both local and remote (`git push origin --delete <branch>` + `git branch -d <branch>`)
+
+---
+
+## Architecture Quick Reference
+
+| Layer | Path | Notes |
+|-------|------|-------|
+| MCP server | `src/server.py` | FastMCP, 28 `@mcp.tool` definitions |
+| Command builders | `src/commands/` | Pure functions → MA2 command strings |
+| Vocabulary / safety | `src/vocab.py` | Schema v2.0, 148 keywords, `classify_token()` |
+| Keyword JSON | `src/grandMA2_v3_9_telnet_keyword_vocabulary.json` | Schema v2.0 with categories + aliases |
+| Telnet client | `src/telnet_client.py` | Async telnet I/O |
+| Navigation | `src/navigation.py` | High-level async cd/list API (orchestrates command builder + telnet + prompt parser) |
+| Prompt parser | `src/prompt_parser.py` | Extracts current object-tree location from raw telnet output |
+| Client manager | `src/tools.py` | Global GMA2 client instance used by server.py |
+| Tests | `tests/` | pytest, no live console required for unit tests |
