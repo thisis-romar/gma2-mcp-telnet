@@ -1,7 +1,7 @@
 {
-  "name": "vscode-mcp-provider",
-  "displayName": "VSCode MCP Provider",
-  "description": "Registers grandMA2 MCP server for AI assistants via MCP stdio transport.",
+  "name": "ma2-onpc-mcp",
+  "displayName": "ma2 onPC MCP",
+  "description": "Registers ma2 onPC MCP server for AI assistants via MCP stdio transport.",
   "version": "0.0.1",
   "engines": {
     "vscode": ">=1.80.0"
@@ -14,8 +14,8 @@
   "contributes": {
     "mcpServerDefinitionProviders": [
       {
-        "id": "gma2-mcp-telnet.mcp-servers",
-        "label": "grandMA2 MCP Servers"
+        "id": "ma2-onpc-mcp.mcp-servers",
+        "label": "ma2 onPC MCP Servers"
       }
     ]
   },

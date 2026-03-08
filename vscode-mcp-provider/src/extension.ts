@@ -2,10 +2,10 @@ import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
-        vscode.lm.registerMcpServerDefinitionProvider('gma2-mcp-telnet.mcp-servers', {
+        vscode.lm.registerMcpServerDefinitionProvider('ma2-onpc-mcp.mcp-servers', {
             provideMcpServerDefinitions: async () => [
                 new vscode.McpStdioServerDefinition(
-                    'grandMA2 MCP',
+                    'ma2 onPC MCP',
                     'uv',
                     ['run', 'python', '-m', 'src.server'],
                     {}, // Optionally pass .env variables here

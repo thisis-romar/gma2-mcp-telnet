@@ -1,14 +1,14 @@
 ---
-title: VSCode MCP Provider
-description: VS Code extension that registers the grandMA2 MCP server for AI assistants
-version: 1.0.0
+title: ma2 onPC MCP — VS Code Extension
+description: VS Code extension that registers the ma2 onPC MCP server for AI assistants
+version: 1.1.0
 created: 2026-03-01T00:00:00Z
-last_updated: 2026-03-01T00:00:00Z
+last_updated: 2026-03-08T00:00:00Z
 ---
 
-# VSCode MCP Provider
+# ma2 onPC MCP — VS Code Extension
 
-This extension registers your grandMA2 MCP server for AI assistants in VS Code using the Model Context Protocol (MCP) stdio transport.
+This extension registers your ma2 onPC MCP server for AI assistants in VS Code using the Model Context Protocol (MCP) stdio transport.
 
 ## Features
 - Registers the MCP server for discovery by compatible AI assistants (Claude, Copilot when supported, etc.)
