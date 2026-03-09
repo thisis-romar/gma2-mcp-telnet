@@ -70,6 +70,7 @@ def _mock_embedding_response(embeddings: list[list[float]]) -> httpx.Response:
     data = [{"index": i, "embedding": emb} for i, emb in enumerate(embeddings)]
     resp = MagicMock(spec=httpx.Response)
     resp.status_code = 200
+    resp.headers = {}
     resp.json.return_value = {"data": data, "model": "openai/text-embedding-3-small"}
     resp.raise_for_status = MagicMock()
     return resp
@@ -134,7 +135,7 @@ class TestGitHubModelsProvider:
 
         mock_post.side_effect = _response_for_batch
 
-        p = GitHubModelsProvider(token="ghp_test123", dimensions=3, batch_size=64)
+        p = GitHubModelsProvider(token="ghp_test123", dimensions=3, batch_size=64, inter_request_delay=0.0)
         texts = [f"text_{i}" for i in range(150)]
         result = p.embed_many(texts)
 
@@ -151,6 +152,7 @@ class TestGitHubModelsProvider:
         """API may return embeddings out of order — provider must sort by index."""
         resp = MagicMock(spec=httpx.Response)
         resp.status_code = 200
+        resp.headers = {}
         resp.json.return_value = {
             "data": [
                 {"index": 2, "embedding": [0.5, 0.6]},
@@ -172,6 +174,7 @@ class TestGitHubModelsProvider:
         """HTTP errors should propagate as httpx.HTTPStatusError."""
         resp = MagicMock(spec=httpx.Response)
         resp.status_code = 401
+        resp.headers = {}
         resp.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Unauthorized", request=MagicMock(), response=resp
         )

@@ -3,6 +3,7 @@
 Usage:
     uv run python scripts/rag_ingest.py [--root .] [--ref worktree] [--db rag/store/rag.db]
     uv run python scripts/rag_ingest.py --provider github   # use GitHub Models embeddings
+    uv run python scripts/rag_ingest.py --provider github --embed-delay 4.0 --embed-batch-size 32
 """
 
 from __future__ import annotations
@@ -27,7 +28,11 @@ from rag.ingest.index import ingest
 logger = logging.getLogger(__name__)
 
 
-def make_provider(choice: str | None) -> EmbeddingProvider:
+def make_provider(
+    choice: str | None,
+    inter_request_delay: float = 4.0,
+    batch_size: int = 32,
+) -> EmbeddingProvider:
     """Build an embedding provider from --provider flag and env vars."""
     token = os.environ.get("GITHUB_MODELS_TOKEN") or os.environ.get("GITHUB_TOKEN")
     model = os.environ.get("RAG_EMBED_MODEL", "openai/text-embedding-3-small")
@@ -40,7 +45,13 @@ def make_provider(choice: str | None) -> EmbeddingProvider:
                 file=sys.stderr,
             )
             sys.exit(1)
-        return GitHubModelsProvider(token=token, model=model, dimensions=dimensions)
+        return GitHubModelsProvider(
+            token=token,
+            model=model,
+            dimensions=dimensions,
+            batch_size=batch_size,
+            inter_request_delay=inter_request_delay,
+        )
 
     if choice == "zero":
         return ZeroVectorProvider()
@@ -48,7 +59,13 @@ def make_provider(choice: str | None) -> EmbeddingProvider:
     # Auto-detect: use GitHub Models if token is set, otherwise zero-vector
     if token:
         logger.info("Auto-detected GITHUB_MODELS_TOKEN, using GitHub Models provider")
-        return GitHubModelsProvider(token=token, model=model, dimensions=dimensions)
+        return GitHubModelsProvider(
+            token=token,
+            model=model,
+            dimensions=dimensions,
+            batch_size=batch_size,
+            inter_request_delay=inter_request_delay,
+        )
 
     logger.warning("No embedding API token found — using zero-vector stub (no semantic search)")
     return ZeroVectorProvider()
@@ -65,6 +82,20 @@ def main() -> None:
         default=None,
         help="Embedding provider (default: auto-detect from env vars)",
     )
+    parser.add_argument(
+        "--embed-delay",
+        type=float,
+        default=4.0,
+        metavar="SECS",
+        help="Seconds between embedding API calls (default: 4.0). Prevents per-minute rate limits.",
+    )
+    parser.add_argument(
+        "--embed-batch-size",
+        type=int,
+        default=32,
+        metavar="N",
+        help="Texts per embedding API request (default: 32).",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -77,7 +108,11 @@ def main() -> None:
     db_path = Path(args.db)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    provider = make_provider(args.provider)
+    provider = make_provider(
+        args.provider,
+        inter_request_delay=args.embed_delay,
+        batch_size=args.embed_batch_size,
+    )
     logger.info("Using embedding provider: %s", provider.model_name)
 
     result = ingest(

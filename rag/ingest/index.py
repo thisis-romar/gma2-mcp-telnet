@@ -22,6 +22,7 @@ def ingest(
     embedding_provider: EmbeddingProvider | None = None,
     db_path: str | Path = RAG_DB_PATH,
     files: list[RepoFile] | None = None,
+    max_new: int = 0,
 ) -> IngestResult:
     """Ingest a repository (or pre-crawled files) into the RAG store.
 
@@ -30,6 +31,9 @@ def ingest(
     3. Chunk the file
     4. Optionally compute embeddings
     5. Store documents and chunks in SQLite
+
+    If *max_new* > 0, stop after embedding that many new files (useful for
+    staying within free-tier API rate limits across multiple runs).
     """
     store = RagStore(db_path)
     store.init_db()
@@ -86,7 +90,11 @@ def ingest(
 
             result.files_processed += 1
             result.chunks_created += len(chunks)
-            logger.info("Indexed %s → %d chunks", file.path, len(chunks))
+            logger.info("Indexed %s \u2192 %d chunks", file.path, len(chunks))
+
+            if max_new and result.files_processed >= max_new:
+                logger.info("Batch limit reached (%d files). Re-run to continue.", max_new)
+                break
 
     finally:
         store.close()
