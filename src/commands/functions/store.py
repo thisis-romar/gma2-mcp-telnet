@@ -144,6 +144,95 @@ def store_cue(
     return cmd
 
 
+def update_cue(
+    cue_id: int | float | None = None,
+    *,
+    sequence_id: int | None = None,
+    merge: bool = False,
+    overwrite: bool = False,
+    cueonly: bool | None = None,
+) -> str:
+    """
+    Construct an Update command to update a cue with programmer values.
+
+    Args:
+        cue_id: Cue number to update (optional; omits for current active cue)
+        sequence_id: Sequence ID (optional scoping)
+        merge: Merge programmer into existing cue values
+        overwrite: Overwrite cue with programmer values
+        cueonly: Prevent changes from tracking forward
+
+    Returns:
+        str: MA command to update a cue
+
+    Examples:
+        >>> update_cue()
+        'update'
+        >>> update_cue(5, merge=True)
+        'update cue 5 /merge'
+        >>> update_cue(3, sequence_id=1, overwrite=True)
+        'update cue 3 sequence 1 /overwrite'
+    """
+    if cue_id is not None:
+        cmd = f"update cue {cue_id}"
+        if sequence_id is not None:
+            cmd += f" sequence {sequence_id}"
+    else:
+        cmd = "update"
+
+    options = []
+    if merge:
+        options.append("/merge")
+    if overwrite:
+        options.append("/overwrite")
+    if cueonly is True:
+        options.append("/cueonly=true")
+    elif cueonly is False:
+        options.append("/cueonly=false")
+
+    if options:
+        cmd += " " + " ".join(options)
+
+    return cmd
+
+
+def store_cue_timed(
+    cue_id: int,
+    *,
+    name: str | None = None,
+    fade_time: float | None = None,
+    out_time: float | None = None,
+    merge: bool = False,
+    overwrite: bool = False,
+) -> str:
+    """
+    Construct a store cue command with inline time parameters.
+
+    MA2 syntax: store cue N [time T] [outtime T2] [/merge]
+
+    Examples:
+        >>> store_cue_timed(2, fade_time=15)
+        'store cue 2 time 15'
+        >>> store_cue_timed(3, name="Scene", fade_time=20, out_time=10, merge=True)
+        'store cue 3 "Scene" time 20 outtime 10 /merge'
+    """
+    cmd = f"store cue {cue_id}"
+    if name:
+        cmd += f' "{name}"'
+    if fade_time is not None:
+        cmd += f" time {fade_time}"
+    if out_time is not None:
+        cmd += f" outtime {out_time}"
+    options = []
+    if merge:
+        options.append("/merge")
+    if overwrite:
+        options.append("/overwrite")
+    if options:
+        cmd += " " + " ".join(options)
+    return cmd
+
+
 def store_group(group_id: int) -> str:
     """
     Construct a command to store a group.

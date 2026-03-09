@@ -285,6 +285,8 @@ def group_at(
 def executor_at(
     executor_id: int,
     value: int | float,
+    *,
+    page: int | None = None,
 ) -> str:
     """
     Set executor fader to a value.
@@ -292,15 +294,19 @@ def executor_at(
     Args:
         executor_id: Executor ID
         value: Fader value (0-100)
+        page: Page number for page-qualified addressing (optional)
 
     Returns:
         str: MA command to set executor fader
 
-    Example:
+    Examples:
         >>> executor_at(3, 50)
         'executor 3 at 50'
+        >>> executor_at(5, 100, page=2)
+        'executor 2.5 at 100'
     """
-    return f"executor {executor_id} at {value}"
+    ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+    return f"executor {ref} at {value}"
 
 
 def preset_type_at(

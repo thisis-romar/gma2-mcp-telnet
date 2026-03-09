@@ -1993,3 +1993,1400 @@ class TestSearchCodebaseTool:
 
         assert len(hits) == 1
         assert hits[0]["kind"] == "source"
+
+
+# ============================================================
+# Tests for New Tools 30–44
+# ============================================================
+
+
+class TestSetExecutorLevelTool:
+    """Tests for the set_executor_level MCP tool (tool #30)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_set_executor_level_basic(self, mock_get_client):
+        """Test setting executor level to a valid value."""
+        from src.server import set_executor_level
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await set_executor_level(executor_id=1, level=75.0)
+        data = json.loads(result)
+
+        assert "command_sent" in data
+        assert data["risk_tier"] == "SAFE_WRITE"
+        mock_client.send_command_with_response.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_set_executor_level_with_page(self, mock_get_client):
+        """Test setting executor level with page qualifier."""
+        from src.server import set_executor_level
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await set_executor_level(executor_id=5, level=50.0, page=2)
+        data = json.loads(result)
+
+        assert "2" in data["command_sent"]
+        assert "5" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    async def test_set_executor_level_invalid_level_high(self):
+        """Test that level > 100 returns an error."""
+        from src.server import set_executor_level
+
+        result = await set_executor_level(executor_id=1, level=101.0)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_set_executor_level_invalid_level_negative(self):
+        """Test that level < 0 returns an error."""
+        from src.server import set_executor_level
+
+        result = await set_executor_level(executor_id=1, level=-1.0)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_set_executor_level_invalid_executor_id(self):
+        """Test that executor_id < 1 returns an error."""
+        from src.server import set_executor_level
+
+        result = await set_executor_level(executor_id=0, level=50.0)
+        data = json.loads(result)
+
+        assert "error" in data
+
+
+class TestNavigatePageTool:
+    """Tests for the navigate_page MCP tool (tool #31)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_navigate_page_goto(self, mock_get_client):
+        """Test navigating to an absolute page."""
+        from src.server import navigate_page
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await navigate_page(action="goto", page_number=3)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "page 3"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_navigate_page_next(self, mock_get_client):
+        """Test navigating to the next page."""
+        from src.server import navigate_page
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await navigate_page(action="next")
+        data = json.loads(result)
+
+        assert "page +" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_navigate_page_previous(self, mock_get_client):
+        """Test navigating to the previous page."""
+        from src.server import navigate_page
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await navigate_page(action="previous")
+        data = json.loads(result)
+
+        assert "page -" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    async def test_navigate_page_goto_missing_page_number(self):
+        """Test that goto without page_number returns an error."""
+        from src.server import navigate_page
+
+        result = await navigate_page(action="goto")
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_navigate_page_invalid_action(self):
+        """Test that invalid action returns an error."""
+        from src.server import navigate_page
+
+        result = await navigate_page(action="jump")
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_navigate_page_next_with_steps(self, mock_get_client):
+        """Test navigating forward by multiple steps."""
+        from src.server import navigate_page
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await navigate_page(action="next", steps=3)
+        data = json.loads(result)
+
+        assert "3" in data["command_sent"]
+
+
+class TestModifySelectionTool:
+    """Tests for the modify_selection MCP tool (tool #32)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_modify_selection_add(self, mock_get_client):
+        """Test adding a fixture to the selection."""
+        from src.server import modify_selection
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await modify_selection(action="add", fixture_ids=[5])
+        data = json.loads(result)
+
+        assert "+ 5" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_modify_selection_remove(self, mock_get_client):
+        """Test removing a fixture from the selection."""
+        from src.server import modify_selection
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await modify_selection(action="remove", fixture_ids=[3])
+        data = json.loads(result)
+
+        assert "- 3" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_modify_selection_clear(self, mock_get_client):
+        """Test clearing the selection."""
+        from src.server import modify_selection
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await modify_selection(action="clear")
+        data = json.loads(result)
+
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_modify_selection_replace(self, mock_get_client):
+        """Test replacing the selection."""
+        from src.server import modify_selection
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await modify_selection(action="replace", fixture_ids=[1, 5])
+        data = json.loads(result)
+
+        assert "command_sent" in data
+
+    @pytest.mark.asyncio
+    async def test_modify_selection_missing_fixtures(self):
+        """Test that non-clear action without fixture_ids returns an error."""
+        from src.server import modify_selection
+
+        result = await modify_selection(action="add")
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_modify_selection_invalid_action(self):
+        """Test that invalid action returns an error."""
+        from src.server import modify_selection
+
+        result = await modify_selection(action="toggle", fixture_ids=[1])
+        data = json.loads(result)
+
+        assert "error" in data
+
+
+class TestAdjustValueRelativeTool:
+    """Tests for the adjust_value_relative MCP tool (tool #33)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_adjust_value_positive_delta(self, mock_get_client):
+        """Test nudging a value up by a positive delta."""
+        from src.server import adjust_value_relative
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_client.send_command = AsyncMock()
+        mock_get_client.return_value = mock_client
+
+        result = await adjust_value_relative(delta=10.0)
+        data = json.loads(result)
+
+        assert "at + 10" in data["commands_sent"][-1]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_adjust_value_negative_delta(self, mock_get_client):
+        """Test nudging a value down by a negative delta."""
+        from src.server import adjust_value_relative
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_client.send_command = AsyncMock()
+        mock_get_client.return_value = mock_client
+
+        result = await adjust_value_relative(delta=-5.0)
+        data = json.loads(result)
+
+        assert "at - 5" in data["commands_sent"][-1]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_adjust_value_with_fixture_and_attribute(self, mock_get_client):
+        """Test nudging with fixture selection and attribute targeting."""
+        from src.server import adjust_value_relative
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_client.send_command = AsyncMock()
+        mock_get_client.return_value = mock_client
+
+        result = await adjust_value_relative(
+            delta=10.0, fixture_ids=[1], attribute_name="Pan"
+        )
+        data = json.loads(result)
+
+        assert len(data["commands_sent"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_adjust_value_zero_delta(self):
+        """Test that delta=0 returns an error."""
+        from src.server import adjust_value_relative
+
+        result = await adjust_value_relative(delta=0)
+        data = json.loads(result)
+
+        assert "error" in data
+
+
+class TestControlTimecodeTool:
+    """Tests for the control_timecode MCP tool (tool #34)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_timecode_start(self, mock_get_client):
+        """Test starting a timecode show."""
+        from src.server import control_timecode
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_timecode(action="start", timecode_id=1)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "go timecode 1"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_timecode_stop(self, mock_get_client):
+        """Test stopping a timecode show."""
+        from src.server import control_timecode
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_timecode(action="stop", timecode_id=2)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "off timecode 2"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_timecode_goto(self, mock_get_client):
+        """Test jumping to a timecode position."""
+        from src.server import control_timecode
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_timecode(
+            action="goto", timecode_id=1, timecode_position="00:01:30:00"
+        )
+        data = json.loads(result)
+
+        assert "00:01:30:00" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    async def test_control_timecode_goto_missing_position(self):
+        """Test that goto without timecode_position returns an error."""
+        from src.server import control_timecode
+
+        result = await control_timecode(action="goto", timecode_id=1)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_control_timecode_invalid_action(self):
+        """Test that invalid action returns an error."""
+        from src.server import control_timecode
+
+        result = await control_timecode(action="pause", timecode_id=1)
+        data = json.loads(result)
+
+        assert "error" in data
+
+
+class TestControlTimerTool:
+    """Tests for the control_timer MCP tool (tool #35)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_timer_start(self, mock_get_client):
+        """Test starting a timer."""
+        from src.server import control_timer
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_timer(action="start", timer_id=1)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "go timer 1"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_timer_stop(self, mock_get_client):
+        """Test stopping a timer."""
+        from src.server import control_timer
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_timer(action="stop", timer_id=3)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "off timer 3"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_timer_reset(self, mock_get_client):
+        """Test resetting a timer."""
+        from src.server import control_timer
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_timer(action="reset", timer_id=2)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "goto timer 2"
+
+    @pytest.mark.asyncio
+    async def test_control_timer_invalid_id(self):
+        """Test that timer_id < 1 returns an error."""
+        from src.server import control_timer
+
+        result = await control_timer(action="start", timer_id=0)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_control_timer_invalid_action(self):
+        """Test that invalid action returns an error."""
+        from src.server import control_timer
+
+        result = await control_timer(action="pause", timer_id=1)
+        data = json.loads(result)
+
+        assert "error" in data
+
+
+class TestUndoLastActionTool:
+    """Tests for the undo_last_action MCP tool (tool #36)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_undo_once(self, mock_get_client):
+        """Test undoing a single action."""
+        from src.server import undo_last_action
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await undo_last_action(count=1)
+        data = json.loads(result)
+
+        assert data["count"] == 1
+        assert data["commands_sent"] == ["oops"]
+        mock_client.send_command_with_response.assert_called_once_with("oops")
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_undo_multiple(self, mock_get_client):
+        """Test undoing multiple actions."""
+        from src.server import undo_last_action
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await undo_last_action(count=3)
+        data = json.loads(result)
+
+        assert data["count"] == 3
+        assert len(data["commands_sent"]) == 3
+        assert mock_client.send_command_with_response.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_undo_count_too_high(self):
+        """Test that count > 20 returns an error."""
+        from src.server import undo_last_action
+
+        result = await undo_last_action(count=21)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_undo_count_zero(self):
+        """Test that count=0 returns an error."""
+        from src.server import undo_last_action
+
+        result = await undo_last_action(count=0)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_undo_risk_tier(self, mock_get_client):
+        """Test that risk tier is SAFE_WRITE."""
+        from src.server import undo_last_action
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await undo_last_action()
+        data = json.loads(result)
+
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+
+class TestToggleConsoleModeTool:
+    """Tests for the toggle_console_mode MCP tool (tool #37)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_toggle_blind(self, mock_get_client):
+        """Test toggling blind mode."""
+        from src.server import toggle_console_mode
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await toggle_console_mode(mode="blind")
+        data = json.loads(result)
+
+        assert data["command_sent"] == "blind"
+        assert data["mode"] == "blind"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_toggle_highlight(self, mock_get_client):
+        """Test toggling highlight mode."""
+        from src.server import toggle_console_mode
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await toggle_console_mode(mode="highlight")
+        data = json.loads(result)
+
+        assert data["command_sent"] == "highlight"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_toggle_freeze(self, mock_get_client):
+        """Test toggling freeze mode."""
+        from src.server import toggle_console_mode
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await toggle_console_mode(mode="freeze")
+        data = json.loads(result)
+
+        assert data["command_sent"] == "freeze"
+
+    @pytest.mark.asyncio
+    async def test_toggle_invalid_mode(self):
+        """Test that invalid mode returns an error."""
+        from src.server import toggle_console_mode
+
+        result = await toggle_console_mode(mode="blackout")
+        data = json.loads(result)
+
+        assert "error" in data
+
+
+class TestUpdateCueDataTool:
+    """Tests for the update_cue_data MCP tool (tool #38)."""
+
+    @pytest.mark.asyncio
+    async def test_blocked_without_confirm(self):
+        """Test that update is blocked without confirmation."""
+        from src.server import update_cue_data
+
+        result = await update_cue_data()
+        data = json.loads(result)
+
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_update_active_cue(self, mock_get_client):
+        """Test updating the currently active cue."""
+        from src.server import update_cue_data
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await update_cue_data(confirm_destructive=True)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "update"
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_update_specific_cue(self, mock_get_client):
+        """Test updating a specific cue."""
+        from src.server import update_cue_data
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await update_cue_data(confirm_destructive=True, cue_id=5.0)
+        data = json.loads(result)
+
+        assert "cue 5" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_update_with_merge(self, mock_get_client):
+        """Test updating with merge option."""
+        from src.server import update_cue_data
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await update_cue_data(
+            confirm_destructive=True, cue_id=3.0, merge=True
+        )
+        data = json.loads(result)
+
+        assert "/merge" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_update_with_sequence_scope(self, mock_get_client):
+        """Test updating with sequence scoping."""
+        from src.server import update_cue_data
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await update_cue_data(
+            confirm_destructive=True, cue_id=2.0, sequence_id=1
+        )
+        data = json.loads(result)
+
+        assert "sequence 1" in data["command_sent"]
+
+
+class TestSetCueTimingTool:
+    """Tests for the set_cue_timing MCP tool (tool #39)."""
+
+    @pytest.mark.asyncio
+    async def test_blocked_without_confirm(self):
+        """Test that set_cue_timing is blocked without confirmation."""
+        from src.server import set_cue_timing
+
+        result = await set_cue_timing(cue_id=1, fade_time=3.0)
+        data = json.loads(result)
+
+        assert data["blocked"] is True
+
+    @pytest.mark.asyncio
+    async def test_error_no_times_provided(self):
+        """Test that omitting both fade_time and delay_time returns an error."""
+        from src.server import set_cue_timing
+
+        result = await set_cue_timing(cue_id=1, confirm_destructive=True)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_set_fade_time_only(self, mock_get_client):
+        """Test setting fade time only."""
+        from src.server import set_cue_timing
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await set_cue_timing(
+            cue_id=3, confirm_destructive=True, fade_time=5.0
+        )
+        data = json.loads(result)
+
+        assert len(data["commands_sent"]) == 1
+        assert "fade" in data["commands_sent"][0]
+        assert "3" in data["commands_sent"][0]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_set_delay_time_only(self, mock_get_client):
+        """Test setting delay time only."""
+        from src.server import set_cue_timing
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await set_cue_timing(
+            cue_id=4, confirm_destructive=True, delay_time=2.0
+        )
+        data = json.loads(result)
+
+        assert len(data["commands_sent"]) == 1
+        assert "delay" in data["commands_sent"][0]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_set_both_fade_and_delay(self, mock_get_client):
+        """Test setting both fade and delay times."""
+        from src.server import set_cue_timing
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await set_cue_timing(
+            cue_id=5, confirm_destructive=True, fade_time=3.0, delay_time=1.0
+        )
+        data = json.loads(result)
+
+        assert len(data["commands_sent"]) == 2
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+
+class TestSelectFixturesByGroupTool:
+    """Tests for the select_fixtures_by_group MCP tool (tool #40)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_select_group_replace(self, mock_get_client):
+        """Test selecting a group (replacing current selection)."""
+        from src.server import select_fixtures_by_group
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await select_fixtures_by_group(group_id=2)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "group 2"
+        assert data["group_id"] == 2
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_select_group_append(self, mock_get_client):
+        """Test appending a group to the current selection."""
+        from src.server import select_fixtures_by_group
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await select_fixtures_by_group(group_id=3, append=True)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "+ group 3"
+
+    @pytest.mark.asyncio
+    async def test_select_group_invalid_id(self):
+        """Test that group_id < 1 returns an error."""
+        from src.server import select_fixtures_by_group
+
+        result = await select_fixtures_by_group(group_id=0)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_select_group_risk_tier(self, mock_get_client):
+        """Test that risk tier is SAFE_WRITE."""
+        from src.server import select_fixtures_by_group
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await select_fixtures_by_group(group_id=1)
+        data = json.loads(result)
+
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+
+class TestControlExecutorTool:
+    """Tests for the control_executor MCP tool (tool #41)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_executor_on(self, mock_get_client):
+        """Test turning an executor on."""
+        from src.server import control_executor
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_executor(action="on", executor_id=5)
+        data = json.loads(result)
+
+        assert data["risk_tier"] == "SAFE_WRITE"
+        assert "on" in data["command_sent"].lower() or "5" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_executor_off(self, mock_get_client):
+        """Test turning an executor off."""
+        from src.server import control_executor
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_executor(action="off", executor_id=5)
+        data = json.loads(result)
+
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_executor_flash(self, mock_get_client):
+        """Test flashing an executor."""
+        from src.server import control_executor
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_executor(action="flash", executor_id=3)
+        data = json.loads(result)
+
+        assert "command_sent" in data
+
+    @pytest.mark.asyncio
+    async def test_control_executor_set_speed_blocked(self):
+        """Test that set_speed is blocked without confirmation."""
+        from src.server import control_executor
+
+        result = await control_executor(
+            action="set_speed", executor_id=1, speed_value=120.0
+        )
+        data = json.loads(result)
+
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_control_executor_set_speed_confirmed(self, mock_get_client):
+        """Test setting executor speed with confirmation."""
+        from src.server import control_executor
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await control_executor(
+            action="set_speed", executor_id=1, speed_value=120.0,
+            confirm_destructive=True
+        )
+        data = json.loads(result)
+
+        assert "120" in data["command_sent"]
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    async def test_control_executor_invalid_action(self):
+        """Test that invalid action returns an error."""
+        from src.server import control_executor
+
+        result = await control_executor(action="pause", executor_id=1)
+        data = json.loads(result)
+
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_control_executor_invalid_id(self):
+        """Test that executor_id < 1 returns an error."""
+        from src.server import control_executor
+
+        result = await control_executor(action="on", executor_id=0)
+        data = json.loads(result)
+
+        assert "error" in data
+
+
+class TestGetExecutorStatusTool:
+    """Tests for the get_executor_status MCP tool (tool #42)."""
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_get_status_all_executors(self, mock_get_client):
+        """Test listing all executors."""
+        from src.server import get_executor_status
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Executor list")
+        mock_get_client.return_value = mock_client
+
+        result = await get_executor_status()
+        data = json.loads(result)
+
+        assert data["command_sent"] == "list executor"
+        assert data["risk_tier"] == "SAFE_READ"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_get_status_specific_executor(self, mock_get_client):
+        """Test listing a specific executor."""
+        from src.server import get_executor_status
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Executor 5")
+        mock_get_client.return_value = mock_client
+
+        result = await get_executor_status(executor_id=5)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "list executor 5"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_get_status_with_page(self, mock_get_client):
+        """Test listing a page-qualified executor."""
+        from src.server import get_executor_status
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Executor 2.5")
+        mock_get_client.return_value = mock_client
+
+        result = await get_executor_status(executor_id=5, page=2)
+        data = json.loads(result)
+
+        assert data["command_sent"] == "list executor 2.5"
+
+
+class TestStoreTimecodeEventTool:
+    """Tests for the store_timecode_event MCP tool (tool #43)."""
+
+    @pytest.mark.asyncio
+    async def test_blocked_without_confirm(self):
+        """Test that store_timecode_event is blocked without confirmation."""
+        from src.server import store_timecode_event
+
+        result = await store_timecode_event(
+            timecode_id=1, cue_id=5.0, sequence_id=1
+        )
+        data = json.loads(result)
+
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_store_timecode_without_position(self, mock_get_client):
+        """Test storing a timecode event without a position."""
+        from src.server import store_timecode_event
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await store_timecode_event(
+            timecode_id=2, cue_id=3.0, sequence_id=1, confirm_destructive=True
+        )
+        data = json.loads(result)
+
+        assert data["command_sent"] == "store timecode 2"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_store_timecode_with_position(self, mock_get_client):
+        """Test storing a timecode event at a specific position."""
+        from src.server import store_timecode_event
+
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+
+        result = await store_timecode_event(
+            timecode_id=1, cue_id=5.0, sequence_id=2,
+            confirm_destructive=True, timecode_position="00:01:00:00"
+        )
+        data = json.loads(result)
+
+        assert "assign timecode 1" in data["command_sent"]
+        assert "00:01:00:00" in data["command_sent"]
+        assert "sequence 2" in data["command_sent"]
+
+
+class TestSetSequencePropertyTool:
+    """Tests for the set_sequence_property MCP tool (tool #44)."""
+
+    @pytest.mark.asyncio
+    async def test_blocked_without_confirm(self):
+        """Test that set_sequence_property is blocked without confirmation."""
+        from src.server import set_sequence_property
+
+        result = await set_sequence_property(
+            sequence_id=1, property_name="loop", value="on"
+        )
+        data = json.loads(result)
+
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.set_property", new_callable=AsyncMock)
+    @patch("src.server.get_client")
+    async def test_set_loop_property(self, mock_get_client, mock_set_property):
+        """Test setting the loop property on a sequence."""
+        from src.server import set_sequence_property
+
+        mock_set_property.return_value = {"ok": True}
+
+        result = await set_sequence_property(
+            sequence_id=1, property_name="loop", value="on",
+            confirm_destructive=True
+        )
+        data = json.loads(result)
+
+        assert data["sequence_id"] == 1
+        assert data["property"] == "loop"
+        assert data["value"] == "on"
+        assert data["risk_tier"] == "DESTRUCTIVE"
+        mock_set_property.assert_called_once_with(
+            path="sequence 1", prop="loop", value="on"
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.server.set_property", new_callable=AsyncMock)
+    @patch("src.server.get_client")
+    async def test_set_tracking_property(self, mock_get_client, mock_set_property):
+        """Test setting the tracking property on a sequence."""
+        from src.server import set_sequence_property
+
+        mock_set_property.return_value = {"ok": True}
+
+        result = await set_sequence_property(
+            sequence_id=3, property_name="tracking", value="off",
+            confirm_destructive=True
+        )
+        data = json.loads(result)
+
+        assert data["sequence_id"] == 3
+        mock_set_property.assert_called_once_with(
+            path="sequence 3", prop="tracking", value="off"
+        )
+
+
+# ============================================================
+# Tests for New Tools 45-52 -- Quick Start Guide Gap-Fill
+# ============================================================
+
+
+class TestSaveShowTool:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_save_show_save(self, mock_get_client):
+        from src.server import save_show
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await save_show(action="save")
+        data = json.loads(result)
+        assert data["command_sent"] == "save"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_save_show_saveas(self, mock_get_client):
+        from src.server import save_show
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await save_show(action="saveas", show_name="my_show")
+        data = json.loads(result)
+        assert data["command_sent"] == 'saveas "my_show"'
+
+    @pytest.mark.asyncio
+    async def test_save_show_saveas_missing_name(self):
+        from src.server import save_show
+        result = await save_show(action="saveas")
+        data = json.loads(result)
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_save_show_invalid_action(self):
+        from src.server import save_show
+        result = await save_show(action="delete")
+        data = json.loads(result)
+        assert "error" in data
+
+
+class TestStoreCueWithTimingTool:
+    @pytest.mark.asyncio
+    async def test_store_cue_with_timing_blocked(self):
+        from src.server import store_cue_with_timing
+        result = await store_cue_with_timing(cue_id=1)
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_store_cue_with_timing_fade(self, mock_get_client):
+        from src.server import store_cue_with_timing
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await store_cue_with_timing(cue_id=2, confirm_destructive=True, fade_time=15.0)
+        data = json.loads(result)
+        assert "store cue 2" in data["command_sent"]
+        assert "time 15.0" in data["command_sent"]
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_store_cue_with_timing_both_times(self, mock_get_client):
+        from src.server import store_cue_with_timing
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await store_cue_with_timing(cue_id=3, confirm_destructive=True, fade_time=20.0, out_time=10.0)
+        data = json.loads(result)
+        assert "time 20.0" in data["command_sent"]
+        assert "outtime 10.0" in data["command_sent"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_store_cue_with_timing_merge(self, mock_get_client):
+        from src.server import store_cue_with_timing
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await store_cue_with_timing(cue_id=1, confirm_destructive=True, fade_time=5.0, merge=True)
+        data = json.loads(result)
+        assert "/merge" in data["command_sent"]
+
+
+class TestSelectExecutorTool:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_select_executor_basic(self, mock_get_client):
+        from src.server import select_executor
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await select_executor(executor_id=3)
+        data = json.loads(result)
+        assert data["command_sent"] == "select executor 3"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_select_executor_with_page(self, mock_get_client):
+        from src.server import select_executor
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await select_executor(executor_id=5, page=2)
+        data = json.loads(result)
+        assert data["command_sent"] == "select executor 2.5"
+
+
+class TestRemoveFromProgrammerTool:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_remove_channel(self, mock_get_client):
+        from src.server import remove_from_programmer
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await remove_from_programmer(object_type="channel", object_id=5)
+        data = json.loads(result)
+        assert data["command_sent"] == "off channel 5"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_remove_channel_range(self, mock_get_client):
+        from src.server import remove_from_programmer
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await remove_from_programmer(object_type="channel", object_id=1, end_id=10)
+        data = json.loads(result)
+        assert data["command_sent"] == "off channel 1 thru 10"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_remove_fixture(self, mock_get_client):
+        from src.server import remove_from_programmer
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await remove_from_programmer(object_type="fixture", object_id=111)
+        data = json.loads(result)
+        assert data["command_sent"] == "off fixture 111"
+
+    @pytest.mark.asyncio
+    async def test_remove_invalid_type(self):
+        from src.server import remove_from_programmer
+        result = await remove_from_programmer(object_type="preset", object_id=1)
+        data = json.loads(result)
+        assert "error" in data
+
+
+class TestAssignCueTriggerTool:
+    @pytest.mark.asyncio
+    async def test_assign_cue_trigger_blocked(self):
+        from src.server import assign_cue_trigger
+        result = await assign_cue_trigger(cue_id=3, sequence_id=1, trigger_type="follow")
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_assign_cue_trigger_follow(self, mock_get_client):
+        from src.server import assign_cue_trigger
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await assign_cue_trigger(cue_id=3, sequence_id=1, trigger_type="follow", confirm_destructive=True)
+        data = json.loads(result)
+        assert data["command_sent"] == "assign trigger follow cue 3 sequence 1"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_assign_cue_trigger_bpm(self, mock_get_client):
+        from src.server import assign_cue_trigger
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await assign_cue_trigger(cue_id=4, sequence_id=2, trigger_type="bpm", trigger_value=120.0, confirm_destructive=True)
+        data = json.loads(result)
+        assert data["command_sent"] == "assign trigger bpm 120.0 cue 4 sequence 2"
+
+    @pytest.mark.asyncio
+    async def test_assign_cue_trigger_bpm_missing_value(self):
+        from src.server import assign_cue_trigger
+        result = await assign_cue_trigger(cue_id=1, sequence_id=1, trigger_type="bpm", confirm_destructive=True)
+        data = json.loads(result)
+        assert "error" in data
+
+
+class TestAssignExecutorPropertyTool:
+    @pytest.mark.asyncio
+    async def test_assign_executor_property_blocked(self):
+        from src.server import assign_executor_property
+        result = await assign_executor_property(property_name="width", executor_id=1, value=2)
+        data = json.loads(result)
+        assert data["blocked"] is True
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_assign_executor_width(self, mock_get_client):
+        from src.server import assign_executor_property
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await assign_executor_property(property_name="width", executor_id=1, value=2, confirm_destructive=True)
+        data = json.loads(result)
+        assert data["command_sent"] == "assign executor 1 /width=2"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_assign_sequence_priority(self, mock_get_client):
+        from src.server import assign_executor_property
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await assign_executor_property(property_name="priority", sequence_id=1, value="high", confirm_destructive=True)
+        data = json.loads(result)
+        assert data["command_sent"] == "assign priority high sequence 1"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_assign_executor_rate(self, mock_get_client):
+        from src.server import assign_executor_property
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await assign_executor_property(property_name="rate", executor_id=3, confirm_destructive=True)
+        data = json.loads(result)
+        assert data["command_sent"] == "assign rate executor 3"
+
+
+class TestIfFilterTool:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_if_filter_active(self, mock_get_client):
+        from src.server import if_filter
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await if_filter(filter_type="active")
+        data = json.loads(result)
+        assert data["command_sent"] == "if"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_if_filter_fixture(self, mock_get_client):
+        from src.server import if_filter
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await if_filter(filter_type="fixture", fixture_id=5)
+        data = json.loads(result)
+        assert data["command_sent"] == "if fixture 5"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_if_filter_attribute(self, mock_get_client):
+        from src.server import if_filter
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await if_filter(filter_type="attribute", fixture_id=5, attribute_name="Pan")
+        data = json.loads(result)
+        assert data["command_sent"] == 'if fixture 5 attribute "Pan"'
+
+    @pytest.mark.asyncio
+    async def test_if_filter_invalid_type(self):
+        from src.server import if_filter
+        result = await if_filter(filter_type="group")
+        data = json.loads(result)
+        assert "error" in data
+
+
+class TestSaveRecallViewTool:
+    @pytest.mark.asyncio
+    async def test_save_recall_view_store_blocked(self):
+        from src.server import save_recall_view
+        result = await save_recall_view(action="store", view_id=1)
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_save_recall_view_store(self, mock_get_client):
+        from src.server import save_recall_view
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await save_recall_view(action="store", view_id=1, screen_id=2, confirm_destructive=True)
+        data = json.loads(result)
+        assert data["command_sent"] == "store ViewButton 2.1"
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_save_recall_view_recall(self, mock_get_client):
+        from src.server import save_recall_view
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await save_recall_view(action="recall", view_id=3)
+        data = json.loads(result)
+        assert data["command_sent"] == "ViewButton 1.3"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_save_recall_view_label(self, mock_get_client):
+        from src.server import save_recall_view
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await save_recall_view(action="label", view_id=2, view_name="My View")
+        data = json.loads(result)
+        assert data["command_sent"] == 'label ViewButton 1.2 "My View"'
+
+    @pytest.mark.asyncio
+    async def test_save_recall_view_invalid_view_id(self):
+        from src.server import save_recall_view
+        result = await save_recall_view(action="recall", view_id=11)
+        data = json.loads(result)
+        assert "error" in data

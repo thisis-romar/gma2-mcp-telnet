@@ -30,6 +30,9 @@ from src.commands import (
     assign as build_assign,
 )
 from src.commands import (
+    assign_delay as build_assign_delay,
+)
+from src.commands import (
     assign_fade as build_assign_fade,
 )
 from src.commands import (
@@ -42,15 +45,22 @@ from src.commands import (
     attribute_at,
     call,
     channel_at,
+    executor_at as build_executor_at,
     fixture_at,
+    flash_executor as build_flash_executor,
     go_macro,
     go_sequence,
     goto_cue,
+    goto_timecode as build_goto_timecode,
     group_at,
     label_group,
+    off_executor as build_off_executor,
+    on_executor as build_on_executor,
     pause_sequence,
     select_fixture,
+    solo_executor as build_solo_executor,
     store_group,
+    update_cue as build_update_cue,
 )
 from src.commands import (
     clear as build_clear,
@@ -157,6 +167,14 @@ from src.commands import (
     remove_selection as build_remove_selection,
 )
 from src.commands import (
+    add_to_selection as build_add_to_selection,
+    at_relative as build_at_relative,
+    clear_selection as build_clear_selection2,
+    page_next as build_page_next,
+    page_previous as build_page_previous,
+    remove_from_selection as build_remove_from_selection,
+)
+from src.commands import (
     set_user_var as build_set_user_var,
 )
 from src.commands import (
@@ -169,6 +187,9 @@ from src.commands import (
 )
 from src.commands import (
     store_cue as build_store_cue,
+)
+from src.commands import (
+    store_cue_timed as build_store_cue_timed,
 )
 from src.commands import (
     store_preset as build_store_preset,
@@ -2102,6 +2123,1003 @@ async def search_codebase(
         }
         for hit in hits
     ], indent=2)
+
+
+# ============================================================
+# New Tools (Tools 30–44)
+# ============================================================
+
+
+@mcp.tool()
+@_handle_errors
+async def set_executor_level(
+    executor_id: int,
+    level: float,
+    page: int | None = None,
+) -> str:
+    """
+    Set a fader/executor to a specific output level.
+
+    Args:
+        executor_id: Executor number (1-999)
+        level: Fader level 0.0–100.0
+        page: Page number for page-qualified addressing (optional)
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if not (0.0 <= level <= 100.0):
+        return json.dumps({"error": "level must be between 0.0 and 100.0"}, indent=2)
+    if executor_id < 1:
+        return json.dumps({"error": "executor_id must be >= 1"}, indent=2)
+
+    client = await get_client()
+    cmd = build_executor_at(executor_id, level, page=page)
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def navigate_page(
+    action: str,
+    page_number: int | None = None,
+    steps: int | None = None,
+) -> str:
+    """
+    Navigate executor pages on the console.
+
+    Args:
+        action: "goto" (absolute page), "next" (page +), or "previous" (page -)
+        page_number: Target page number (required for "goto"; 1-240)
+        steps: Number of pages to advance/go back (optional; for "next"/"previous")
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if action not in ("goto", "next", "previous"):
+        return json.dumps({"error": "action must be 'goto', 'next', or 'previous'"}, indent=2)
+    if action == "goto":
+        if page_number is None:
+            return json.dumps({"error": "page_number is required for action='goto'"}, indent=2)
+        cmd = f"page {page_number}"
+    elif action == "next":
+        cmd = build_page_next(steps)
+    else:
+        cmd = build_page_previous(steps)
+
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def modify_selection(
+    action: str,
+    fixture_ids: list[int] | None = None,
+    end_id: int | None = None,
+) -> str:
+    """
+    Add, remove, replace, or clear the current fixture selection.
+
+    Args:
+        action: "add" (+ N), "remove" (- N), "replace" (selfix), or "clear"
+        fixture_ids: Fixture IDs to add/remove/replace (required for all except "clear")
+        end_id: End of a range (optional; builds thru N)
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if action not in ("add", "remove", "replace", "clear"):
+        return json.dumps({"error": "action must be 'add', 'remove', 'replace', or 'clear'"}, indent=2)
+    if action != "clear" and not fixture_ids:
+        return json.dumps({"error": "fixture_ids is required for action != 'clear'"}, indent=2)
+
+    client = await get_client()
+    if action == "clear":
+        cmd = build_clear_selection2()
+    elif action == "add":
+        if len(fixture_ids) == 1 and end_id is not None:
+            cmd = build_add_to_selection(fixture_ids[0], end=end_id)
+        elif len(fixture_ids) == 1:
+            cmd = build_add_to_selection(fixture_ids[0])
+        else:
+            cmd = build_add_to_selection(fixture_ids)
+    elif action == "remove":
+        if len(fixture_ids) == 1 and end_id is not None:
+            cmd = build_remove_from_selection(fixture_ids[0], end=end_id)
+        elif len(fixture_ids) == 1:
+            cmd = build_remove_from_selection(fixture_ids[0])
+        else:
+            cmd = build_remove_from_selection(fixture_ids)
+    else:  # replace
+        first = fixture_ids[0]
+        last = end_id if end_id is not None else (fixture_ids[-1] if len(fixture_ids) > 1 else None)
+        cmd = select_fixture(first, last)
+
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def adjust_value_relative(
+    delta: float,
+    attribute_name: str | None = None,
+    fixture_ids: list[int] | None = None,
+    end_id: int | None = None,
+) -> str:
+    """
+    Nudge an attribute value by a relative delta on the current (or specified) selection.
+
+    Args:
+        delta: Relative change (positive or negative, non-zero). E.g. +10 or -5.
+        attribute_name: Attribute to target (e.g. "Pan", "Tilt", "Dimmer"). Optional.
+        fixture_ids: Select these fixtures before nudging. Optional.
+        end_id: End of fixture range. Optional.
+
+    Returns:
+        str: JSON result with commands sent
+    """
+    if delta == 0:
+        return json.dumps({"error": "delta cannot be zero"}, indent=2)
+
+    client = await get_client()
+    commands_sent = []
+
+    if fixture_ids:
+        first = fixture_ids[0]
+        last = end_id if end_id is not None else (fixture_ids[-1] if len(fixture_ids) > 1 else None)
+        sel_cmd = select_fixture(first, last)
+        await client.send_command(sel_cmd)
+        commands_sent.append(sel_cmd)
+
+    if attribute_name:
+        attr_cmd = f'attribute "{attribute_name}"'
+        await client.send_command(attr_cmd)
+        commands_sent.append(attr_cmd)
+
+    nudge_cmd = build_at_relative(delta)
+    response = await client.send_command_with_response(nudge_cmd)
+    commands_sent.append(nudge_cmd)
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def control_timecode(
+    action: str,
+    timecode_id: int,
+    timecode_position: str | None = None,
+) -> str:
+    """
+    Start, stop, or jump to a position in a timecode show.
+
+    Args:
+        action: "start" (go), "stop" (off), or "goto"
+        timecode_id: Timecode show ID (1-256)
+        timecode_position: HH:MM:SS:FF position string (required for "goto")
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if action not in ("start", "stop", "goto"):
+        return json.dumps({"error": "action must be 'start', 'stop', or 'goto'"}, indent=2)
+    if action == "goto" and timecode_position is None:
+        return json.dumps({"error": "timecode_position is required for action='goto'"}, indent=2)
+
+    client = await get_client()
+    if action == "start":
+        cmd = f"go timecode {timecode_id}"
+    elif action == "stop":
+        cmd = f"off timecode {timecode_id}"
+    else:
+        cmd = build_goto_timecode(timecode_id, timecode_position)
+
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def control_timer(
+    action: str,
+    timer_id: int,
+) -> str:
+    """
+    Start, stop, or reset a console timer.
+
+    Args:
+        action: "start" (go), "stop" (off), or "reset" (goto)
+        timer_id: Timer ID (1-256)
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if action not in ("start", "stop", "reset"):
+        return json.dumps({"error": "action must be 'start', 'stop', or 'reset'"}, indent=2)
+    if timer_id < 1:
+        return json.dumps({"error": "timer_id must be >= 1"}, indent=2)
+
+    client = await get_client()
+    if action == "start":
+        cmd = f"go timer {timer_id}"
+    elif action == "stop":
+        cmd = f"off timer {timer_id}"
+    else:
+        cmd = f"goto timer {timer_id}"
+
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def undo_last_action(count: int = 1) -> str:
+    """
+    Undo the last N actions on the console (sends 'oops' N times).
+
+    Args:
+        count: Number of actions to undo (1-20, default 1)
+
+    Returns:
+        str: JSON result with all raw responses
+    """
+    if not (1 <= count <= 20):
+        return json.dumps({"error": "count must be between 1 and 20"}, indent=2)
+
+    client = await get_client()
+    responses = []
+    for _ in range(count):
+        response = await client.send_command_with_response("oops")
+        responses.append(response)
+
+    return json.dumps({
+        "commands_sent": ["oops"] * count,
+        "raw_responses": responses,
+        "count": count,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def toggle_console_mode(mode: str) -> str:
+    """
+    Toggle a console mode on/off (blind, highlight, solo, freeze).
+
+    These are toggle commands — each call flips the current state.
+
+    Args:
+        mode: "blind", "highlight", "solo", or "freeze"
+
+    Returns:
+        str: JSON result with command sent
+    """
+    valid = ("blind", "highlight", "solo", "freeze")
+    if mode not in valid:
+        return json.dumps({"error": f"mode must be one of {valid}"}, indent=2)
+
+    client = await get_client()
+    response = await client.send_command_with_response(mode)
+    return json.dumps({
+        "command_sent": mode,
+        "raw_response": response,
+        "mode": mode,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def update_cue_data(
+    confirm_destructive: bool = False,
+    cue_id: float | None = None,
+    sequence_id: int | None = None,
+    merge: bool = False,
+    overwrite: bool = False,
+    cueonly: bool | None = None,
+) -> str:
+    """
+    Update a cue with current programmer values (DESTRUCTIVE).
+
+    Args:
+        confirm_destructive: Must be True to execute
+        cue_id: Cue number to update (optional; updates active cue if omitted)
+        sequence_id: Sequence ID for scoping (optional)
+        merge: Merge programmer into existing cue values
+        overwrite: Overwrite cue with programmer values
+        cueonly: Prevent tracking forward (True) or allow (False)
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Destructive operation blocked. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    client = await get_client()
+    cmd = build_update_cue(cue_id, sequence_id=sequence_id, merge=merge,
+                           overwrite=overwrite, cueonly=cueonly)
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "DESTRUCTIVE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def set_cue_timing(
+    cue_id: int,
+    confirm_destructive: bool = False,
+    sequence_id: int | None = None,
+    fade_time: float | None = None,
+    delay_time: float | None = None,
+) -> str:
+    """
+    Set fade and/or delay time on a specific cue (DESTRUCTIVE).
+
+    Args:
+        cue_id: Cue number to update
+        confirm_destructive: Must be True to execute
+        sequence_id: Sequence ID for scoping (optional)
+        fade_time: Fade time in seconds (0.0–3600.0, optional)
+        delay_time: Delay time in seconds (0.0–3600.0, optional)
+
+    Returns:
+        str: JSON result with commands sent
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Destructive operation blocked. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+    if fade_time is None and delay_time is None:
+        return json.dumps({"error": "At least one of fade_time or delay_time must be provided"}, indent=2)
+
+    client = await get_client()
+    commands_sent = []
+    responses = []
+
+    if fade_time is not None:
+        cmd = build_assign_fade(fade_time, cue_id, sequence_id=sequence_id)
+        response = await client.send_command_with_response(cmd)
+        commands_sent.append(cmd)
+        responses.append(response)
+
+    if delay_time is not None:
+        cmd = build_assign_delay(delay_time, cue_id, sequence_id=sequence_id)
+        response = await client.send_command_with_response(cmd)
+        commands_sent.append(cmd)
+        responses.append(response)
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_responses": responses,
+        "risk_tier": "DESTRUCTIVE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def select_fixtures_by_group(
+    group_id: int,
+    append: bool = False,
+) -> str:
+    """
+    Select all fixtures in a group (replaces or appends to current selection).
+
+    Args:
+        group_id: Group ID to select (1-999)
+        append: If True, adds group to current selection instead of replacing
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if group_id < 1:
+        return json.dumps({"error": "group_id must be >= 1"}, indent=2)
+
+    client = await get_client()
+    cmd = f"+ group {group_id}" if append else f"group {group_id}"
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "group_id": group_id,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def control_executor(
+    action: str,
+    executor_id: int,
+    page: int | None = None,
+    speed_value: float | None = None,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Control an executor: start, stop, flash, solo, or set speed (set_speed is DESTRUCTIVE).
+
+    Args:
+        action: "on", "off", "flash", "solo", or "set_speed"
+        executor_id: Executor ID (1-999)
+        page: Page number for page-qualified addressing (optional)
+        speed_value: BPM value for set_speed (0.0–999.0; required for set_speed)
+        confirm_destructive: Must be True when action="set_speed"
+
+    Returns:
+        str: JSON result with command sent
+    """
+    valid_actions = ("on", "off", "flash", "solo", "set_speed")
+    if action not in valid_actions:
+        return json.dumps({"error": f"action must be one of {valid_actions}"}, indent=2)
+    if executor_id < 1:
+        return json.dumps({"error": "executor_id must be >= 1"}, indent=2)
+
+    if action == "set_speed":
+        if not confirm_destructive:
+            return json.dumps({
+                "blocked": True,
+                "error": "set_speed is DESTRUCTIVE. Set confirm_destructive=True to proceed.",
+                "risk_tier": "DESTRUCTIVE",
+            }, indent=2)
+        if speed_value is None:
+            return json.dumps({"error": "speed_value is required for action='set_speed'"}, indent=2)
+        ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+        cmd = f"assign speed {speed_value} at executor {ref}"
+        risk_tier = "DESTRUCTIVE"
+    elif action == "on":
+        cmd = build_on_executor(executor_id, page=page)
+        risk_tier = "SAFE_WRITE"
+    elif action == "off":
+        cmd = build_off_executor(executor_id, page=page)
+        risk_tier = "SAFE_WRITE"
+    elif action == "flash":
+        cmd = build_flash_executor(executor_id, page=page)
+        risk_tier = "SAFE_WRITE"
+    else:  # solo
+        cmd = build_solo_executor(executor_id, page=page)
+        risk_tier = "SAFE_WRITE"
+
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": risk_tier,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def get_executor_status(
+    executor_id: int | None = None,
+    page: int | None = None,
+) -> str:
+    """
+    Query the status of one or all executors (SAFE_READ).
+
+    Args:
+        executor_id: Executor ID to inspect (optional; lists all if omitted)
+        page: Page number for page-qualified addressing (optional)
+
+    Returns:
+        str: JSON result with raw console response
+    """
+    if executor_id is not None:
+        ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+        cmd = f"list executor {ref}"
+    else:
+        cmd = "list executor"
+
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def store_timecode_event(
+    timecode_id: int,
+    cue_id: float,
+    sequence_id: int,
+    confirm_destructive: bool = False,
+    timecode_position: str | None = None,
+) -> str:
+    """
+    Store a timecode trigger event that fires a cue at a specific time (DESTRUCTIVE).
+
+    Args:
+        timecode_id: Timecode show ID (1-256)
+        cue_id: Cue to trigger
+        sequence_id: Sequence containing the cue
+        confirm_destructive: Must be True to execute
+        timecode_position: HH:MM:SS:FF position string (optional)
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Destructive operation blocked. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    client = await get_client()
+    if timecode_position:
+        cmd = f'assign timecode {timecode_id} cue {cue_id} sequence {sequence_id} "{timecode_position}"'
+    else:
+        cmd = f"store timecode {timecode_id}"
+
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "DESTRUCTIVE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def set_sequence_property(
+    sequence_id: int,
+    property_name: str,
+    value: str,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Set a property on a sequence object via the console tree (DESTRUCTIVE).
+
+    Navigates to the sequence node, assigns the property, then returns to root.
+
+    Args:
+        sequence_id: Sequence ID (1-999)
+        property_name: Property name (e.g. "loop", "tracking", "label")
+        value: Property value (e.g. "on", "off", "My Sequence")
+        confirm_destructive: Must be True to execute
+
+    Returns:
+        str: JSON result with commands sent
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Destructive operation blocked. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    result = await set_property(
+        path=f"sequence {sequence_id}",
+        prop=property_name,
+        value=value,
+    )
+    return json.dumps({
+        "sequence_id": sequence_id,
+        "property": property_name,
+        "value": value,
+        "result": result,
+        "risk_tier": "DESTRUCTIVE",
+    }, indent=2)
+
+
+# ============================================================
+# New Tools (Tools 45–52) — Quick Start Guide Gap-Fill
+# ============================================================
+
+
+@mcp.tool()
+@_handle_errors
+async def save_show(
+    action: str,
+    show_name: str | None = None,
+) -> str:
+    """
+    Save the current show file to disk.
+
+    Args:
+        action: "save" (overwrite current) or "saveas" (save under a new name)
+        show_name: Show name/path (required for action="saveas")
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if action not in ("save", "saveas"):
+        return json.dumps({"error": "action must be 'save' or 'saveas'"}, indent=2)
+    if action == "saveas" and not show_name:
+        return json.dumps({"error": "show_name is required for action='saveas'"}, indent=2)
+
+    client = await get_client()
+    cmd = "save" if action == "save" else f'saveas "{show_name}"'
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def store_cue_with_timing(
+    cue_id: int,
+    confirm_destructive: bool = False,
+    fade_time: float | None = None,
+    out_time: float | None = None,
+    merge: bool = False,
+    overwrite: bool = False,
+    cue_name: str | None = None,
+) -> str:
+    """
+    Store a cue with inline fade and outtime parameters (DESTRUCTIVE).
+
+    Args:
+        cue_id: Cue number to store
+        confirm_destructive: Must be True to execute
+        fade_time: Fade-in time in seconds (optional)
+        out_time: Fade-out time in seconds (optional)
+        merge: Merge into existing cue
+        overwrite: Overwrite existing cue
+        cue_name: Optional cue label
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Destructive operation blocked. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    client = await get_client()
+    cmd = build_store_cue_timed(
+        cue_id,
+        name=cue_name,
+        fade_time=fade_time,
+        out_time=out_time,
+        merge=merge,
+        overwrite=overwrite,
+    )
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "DESTRUCTIVE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def select_executor(
+    executor_id: int,
+    page: int | None = None,
+) -> str:
+    """
+    Select an executor on the console.
+
+    Args:
+        executor_id: Executor number (1-999)
+        page: Page number for page-qualified addressing (optional)
+
+    Returns:
+        str: JSON result with command sent
+    """
+    ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+    cmd = f"select executor {ref}"
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def remove_from_programmer(
+    object_type: str,
+    object_id: int,
+    end_id: int | None = None,
+) -> str:
+    """
+    Remove channels, fixtures, or a group from the programmer using Off.
+
+    Args:
+        object_type: "channel", "fixture", or "group"
+        object_id: Object ID to remove
+        end_id: End of range for channel/fixture (optional; builds thru N)
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if object_type not in ("channel", "fixture", "group"):
+        return json.dumps(
+            {"error": "object_type must be 'channel', 'fixture', or 'group'"},
+            indent=2,
+        )
+    if end_id is not None and object_type != "group":
+        cmd = f"off {object_type} {object_id} thru {end_id}"
+    else:
+        cmd = f"off {object_type} {object_id}"
+
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def assign_cue_trigger(
+    cue_id: int,
+    sequence_id: int,
+    trigger_type: str,
+    confirm_destructive: bool = False,
+    trigger_value: float | None = None,
+) -> str:
+    """
+    Assign a playback trigger type to a cue (DESTRUCTIVE).
+
+    Args:
+        cue_id: Cue number to assign the trigger to
+        sequence_id: Sequence containing the cue
+        trigger_type: "go", "follow", "time", or "bpm"
+        confirm_destructive: Must be True to execute
+        trigger_value: BPM or time value (required for "bpm" and "time")
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Destructive operation blocked. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    valid = ("go", "follow", "time", "bpm")
+    if trigger_type not in valid:
+        return json.dumps({"error": f"trigger_type must be one of {valid}"}, indent=2)
+    if trigger_type in ("bpm", "time") and trigger_value is None:
+        return json.dumps(
+            {"error": f"trigger_value is required for trigger_type='{trigger_type}'"},
+            indent=2,
+        )
+
+    if trigger_type == "bpm":
+        cmd = f"assign trigger bpm {trigger_value} cue {cue_id} sequence {sequence_id}"
+    elif trigger_type == "time":
+        cmd = f"assign trigger time {trigger_value} cue {cue_id} sequence {sequence_id}"
+    else:
+        cmd = f"assign trigger {trigger_type} cue {cue_id} sequence {sequence_id}"
+
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "DESTRUCTIVE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def assign_executor_property(
+    property_name: str,
+    confirm_destructive: bool = False,
+    executor_id: int | None = None,
+    sequence_id: int | None = None,
+    value: str | int | float | None = None,
+) -> str:
+    """
+    Assign a property (width, priority, rate) to an executor or sequence (DESTRUCTIVE).
+
+    Args:
+        property_name: "width", "priority", or "rate"
+        confirm_destructive: Must be True to execute
+        executor_id: Executor ID (required for "width" and "rate")
+        sequence_id: Sequence ID (required for "priority")
+        value: Property value (e.g. 2 for width, "high" for priority)
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Destructive operation blocked. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    valid = ("width", "priority", "rate")
+    if property_name not in valid:
+        return json.dumps({"error": f"property_name must be one of {valid}"}, indent=2)
+
+    if property_name == "width":
+        if executor_id is None or value is None:
+            return json.dumps(
+                {"error": "executor_id and value are required for property_name='width'"},
+                indent=2,
+            )
+        cmd = f"assign executor {executor_id} /width={value}"
+    elif property_name == "priority":
+        if sequence_id is None or value is None:
+            return json.dumps(
+                {"error": "sequence_id and value are required for property_name='priority'"},
+                indent=2,
+            )
+        cmd = f"assign priority {value} sequence {sequence_id}"
+    else:  # rate
+        if executor_id is None:
+            return json.dumps(
+                {"error": "executor_id is required for property_name='rate'"},
+                indent=2,
+            )
+        cmd = f"assign rate executor {executor_id}"
+
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "DESTRUCTIVE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def if_filter(
+    filter_type: str,
+    fixture_id: int | None = None,
+    attribute_name: str | None = None,
+) -> str:
+    """
+    Apply an If filter to the current selection or command context.
+
+    Args:
+        filter_type: "active" (bare 'if'), "fixture" (specific fixture), or "attribute"
+        fixture_id: Fixture ID (required for "fixture" and "attribute")
+        attribute_name: Attribute name (required for "attribute"; e.g. "Pan")
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if filter_type not in ("active", "fixture", "attribute"):
+        return json.dumps(
+            {"error": "filter_type must be 'active', 'fixture', or 'attribute'"},
+            indent=2,
+        )
+    if filter_type in ("fixture", "attribute") and fixture_id is None:
+        return json.dumps(
+            {"error": "fixture_id is required for filter_type != 'active'"},
+            indent=2,
+        )
+    if filter_type == "attribute" and attribute_name is None:
+        return json.dumps(
+            {"error": "attribute_name is required for filter_type='attribute'"},
+            indent=2,
+        )
+
+    if filter_type == "active":
+        cmd = "if"
+    elif filter_type == "fixture":
+        cmd = f"if fixture {fixture_id}"
+    else:
+        cmd = f'if fixture {fixture_id} attribute "{attribute_name}"'
+
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def save_recall_view(
+    action: str,
+    view_id: int,
+    screen_id: int = 1,
+    view_name: str | None = None,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Store, recall, or label a screen view (store is DESTRUCTIVE).
+
+    Args:
+        action: "store" (save current screen), "recall" (load view), or "label" (name it)
+        view_id: View slot ID (1-10)
+        screen_id: Screen number (1-4, default 1)
+        view_name: Label for the view (required for action="label")
+        confirm_destructive: Must be True for action="store"
+
+    Returns:
+        str: JSON result with command sent
+    """
+    if action not in ("store", "recall", "label"):
+        return json.dumps(
+            {"error": "action must be 'store', 'recall', or 'label'"},
+            indent=2,
+        )
+    if not (1 <= view_id <= 10):
+        return json.dumps({"error": "view_id must be between 1 and 10"}, indent=2)
+    if not (1 <= screen_id <= 4):
+        return json.dumps({"error": "screen_id must be between 1 and 4"}, indent=2)
+    if action == "store" and not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Destructive operation blocked. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+    if action == "label" and not view_name:
+        return json.dumps(
+            {"error": "view_name is required for action='label'"},
+            indent=2,
+        )
+
+    ref = f"{screen_id}.{view_id}"
+    if action == "store":
+        cmd = f"store ViewButton {ref}"
+        risk_tier = "DESTRUCTIVE"
+    elif action == "recall":
+        cmd = f"ViewButton {ref}"
+        risk_tier = "SAFE_WRITE"
+    else:
+        cmd = f'label ViewButton {ref} "{view_name}"'
+        risk_tier = "SAFE_WRITE"
+
+    client = await get_client()
+    response = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": response,
+        "risk_tier": risk_tier,
+    }, indent=2)
 
 
 # ============================================================

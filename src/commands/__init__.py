@@ -56,6 +56,7 @@ from .functions import (
     appearance,
     # Assign Function Keyword
     assign,
+    assign_delay,
     assign_fade,
     assign_function,
     assign_property,
@@ -98,6 +99,7 @@ from .functions import (
     empty,
     executor_at,
     fixture_at,
+    flash_executor,
     go,
     go_back,
     go_back_executor,
@@ -108,6 +110,7 @@ from .functions import (
     go_sequence,
     goto,
     goto_cue,
+    goto_timecode,
     group_at,
     if_condition,
     # Info Function Keyword
@@ -131,6 +134,8 @@ from .functions import (
     macro_with_input_before,
     # Move Function Keyword
     move,
+    off_executor,
+    on_executor,
     page_next,
     page_previous,
     # Park Function Keywords
@@ -151,12 +156,15 @@ from .functions import (
     # Variable Function Keywords
     set_user_var,
     set_var,
+    solo_executor,
     store,
     store_cue,
+    store_cue_timed,
     store_group,
     store_preset,
     temp_fader,
     unpark,
+    update_cue,
 )
 
 # Object Keywords
@@ -206,6 +214,7 @@ __all__ = [
     "timer",
     # Assign Function Keyword
     "assign",
+    "assign_delay",
     "assign_property",
     "assign_fade",
     "assign_function",
@@ -297,6 +306,13 @@ __all__ = [
     "def_go_back",
     "def_go_forward",
     "def_go_pause",
+    # Executor on/off/flash/solo
+    "on_executor",
+    "off_executor",
+    "flash_executor",
+    "solo_executor",
+    # Timecode goto
+    "goto_timecode",
     # Helping Keywords (Plus +, Minus -, And, If)
     "at_relative",
     "add_to_selection",
@@ -317,6 +333,9 @@ __all__ = [
     "add_var",
     # Navigation Function Keywords
     "changedest",
+    # Store / Update
+    "store_cue_timed",
+    "update_cue",
     # Backward Compatibility Aliases
     "select_group",
     "call_preset",

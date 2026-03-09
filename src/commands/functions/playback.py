@@ -438,6 +438,108 @@ def go_fast_forward(
 # ============================================================================
 
 
+def on_executor(executor_id: int, *, page: int | None = None) -> str:
+    """
+    Start (Go) an executor.
+
+    Args:
+        executor_id: Executor ID
+        page: Page number for page-qualified addressing (optional)
+
+    Returns:
+        str: MA command to start executor
+
+    Examples:
+        >>> on_executor(3)
+        'on executor 3'
+        >>> on_executor(5, page=2)
+        'on executor 2.5'
+    """
+    ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+    return f"on executor {ref}"
+
+
+def off_executor(executor_id: int, *, page: int | None = None) -> str:
+    """
+    Release (Off) an executor.
+
+    Args:
+        executor_id: Executor ID
+        page: Page number for page-qualified addressing (optional)
+
+    Returns:
+        str: MA command to release executor
+
+    Examples:
+        >>> off_executor(3)
+        'off executor 3'
+        >>> off_executor(5, page=2)
+        'off executor 2.5'
+    """
+    ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+    return f"off executor {ref}"
+
+
+def flash_executor(executor_id: int, *, page: int | None = None) -> str:
+    """
+    Flash an executor.
+
+    Args:
+        executor_id: Executor ID
+        page: Page number for page-qualified addressing (optional)
+
+    Returns:
+        str: MA command to flash executor
+
+    Examples:
+        >>> flash_executor(3)
+        'flash executor 3'
+    """
+    ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+    return f"flash executor {ref}"
+
+
+def solo_executor(executor_id: int, *, page: int | None = None) -> str:
+    """
+    Solo an executor.
+
+    Args:
+        executor_id: Executor ID
+        page: Page number for page-qualified addressing (optional)
+
+    Returns:
+        str: MA command to solo executor
+
+    Examples:
+        >>> solo_executor(3)
+        'solo executor 3'
+    """
+    ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+    return f"solo executor {ref}"
+
+
+def goto_timecode(timecode_id: int, position: str | None = None) -> str:
+    """
+    Jump to a position in a timecode show, or reset to start.
+
+    Args:
+        timecode_id: Timecode show ID
+        position: HH:MM:SS:FF position string (optional; omit to reset to start)
+
+    Returns:
+        str: MA command to jump timecode position
+
+    Examples:
+        >>> goto_timecode(1, "00:01:30:00")
+        'goto timecode 1 "00:01:30:00"'
+        >>> goto_timecode(1)
+        'goto timecode 1'
+    """
+    if position is not None:
+        return f'goto timecode {timecode_id} "{position}"'
+    return f"goto timecode {timecode_id}"
+
+
 def def_go_back() -> str:
     """
     Construct a DefGoBack command to call the previous cue in the selected executor.

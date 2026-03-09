@@ -29,6 +29,7 @@ from ..objects import preset as call_preset
 # Assignment Function Keywords
 from .assignment import (
     assign,
+    assign_delay,
     assign_fade,
     assign_function,
     assign_property,
@@ -118,6 +119,7 @@ from .playback import (
     def_go_back,
     def_go_forward,
     def_go_pause,
+    flash_executor,
     go,
     go_back,
     go_back_executor,
@@ -128,7 +130,11 @@ from .playback import (
     go_sequence,
     goto,
     goto_cue,
+    goto_timecode,
+    off_executor,
+    on_executor,
     pause_sequence,
+    solo_executor,
 )
 
 # Selection Function Keywords (SelFix, Clear)
@@ -142,8 +148,10 @@ from .selection import (
 from .store import (
     store,
     store_cue,
+    store_cue_timed,
     store_group,
     store_preset,
+    update_cue,
 )
 
 # Values Function Keywords (At)
@@ -168,11 +176,13 @@ from .variables import (
 )
 
 __all__ = [
-    # Store
+    # Store / Update
     "store",
     "store_cue",
+    "store_cue_timed",
     "store_group",
     "store_preset",
+    "update_cue",
     # SelFix
     "select_fixture",
     # Clear
@@ -217,6 +227,13 @@ __all__ = [
     "def_go_back",
     "def_go_forward",
     "def_go_pause",
+    # Executor on/off/flash/solo
+    "on_executor",
+    "off_executor",
+    "flash_executor",
+    "solo_executor",
+    # Timecode goto
+    "goto_timecode",
     # Edit
     "edit",
     # Cut
@@ -230,6 +247,7 @@ __all__ = [
     "move",
     # Assign
     "assign",
+    "assign_delay",
     "assign_property",
     "assign_function",
     "assign_fade",

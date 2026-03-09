@@ -236,6 +236,35 @@ def assign_to_layout(
     return assign(object_type, object_id, "layout", layout_id, source_end=end, x=x, y=y)
 
 
+def assign_delay(
+    delay_time: float,
+    cue_id: int,
+    *,
+    sequence_id: int | None = None,
+) -> str:
+    """
+    Assign delay time to a cue.
+
+    Args:
+        delay_time: Delay time in seconds
+        cue_id: Cue ID
+        sequence_id: Sequence ID (optional, uses selected executor if not given)
+
+    Returns:
+        str: MA command to assign delay time
+
+    Examples:
+        >>> assign_delay(1.5, 5)
+        'assign delay 1.5 cue 5'
+        >>> assign_delay(2.0, 3, sequence_id=1)
+        'assign delay 2.0 cue 3 sequence 1'
+    """
+    cmd = f"assign delay {delay_time} cue {cue_id}"
+    if sequence_id is not None:
+        cmd += f" sequence {sequence_id}"
+    return cmd
+
+
 def empty() -> str:
     """
     Construct an Empty command to deactivate executors.
