@@ -12,6 +12,51 @@ from .constants import STORE_BOOL_OPTIONS, STORE_FLAG_OPTIONS, STORE_VALUE_OPTIO
 
 logger = logging.getLogger(__name__)
 
+# Characters that have special meaning in the MA2 command line (manual: key_cs_special_characters)
+MA2_SPECIAL_CHARS: frozenset[str] = frozenset('*@$./;[]() "')
+
+
+def quote_name(name: str, match_mode: str = "literal") -> str:
+    """
+    Quote an object name per the MA2 wildcard specification.
+
+    Implements all three deterministic builder rules from the MA2 special-characters spec:
+
+    - Rule A (literal intent): Quote any name that contains special characters
+      so they are treated literally by the console.
+    - Rule B (wildcard intent): Pass the name raw (unquoted) so '*' is interpreted
+      as a wildcard operator by the console.
+    - Rule C (safe default): Default is literal — autonomous agents must explicitly
+      opt in to wildcard mode to avoid unexpected multi-object expansion.
+
+    Args:
+        name: Object name or wildcard pattern.
+        match_mode: "literal" (default) or "wildcard".
+
+    Returns:
+        str: Properly quoted or raw name ready to embed in a command string.
+
+    Examples:
+        >>> quote_name("AllFixtures")
+        'AllFixtures'
+        >>> quote_name("Front*Wash")
+        '"Front*Wash"'
+        >>> quote_name("Go.Live")
+        '"Go.Live"'
+        >>> quote_name("Intro/Outro")
+        '"Intro/Outro"'
+        >>> quote_name("Mac*", match_mode="wildcard")
+        'Mac*'
+        >>> quote_name("*Wash*", match_mode="wildcard")
+        '*Wash*'
+    """
+    if match_mode == "wildcard":
+        return name  # Rule B — emit raw; * is wildcard operator
+    # Rule A + C — quote if the name contains any MA2 special character
+    if any(c in MA2_SPECIAL_CHARS for c in name):
+        return f'"{name}"'
+    return name  # No special chars — quotes may be safely omitted per manual
+
 
 def _build_store_options(**kwargs: Any) -> str:
     """

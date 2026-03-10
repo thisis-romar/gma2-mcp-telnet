@@ -62,6 +62,7 @@ from .edit import (
     delete_preset,
     edit,
     move,
+    oops,
     paste,
     remove,
     remove_effect,
@@ -128,10 +129,12 @@ from .park import (
 # Playback Function Keywords (Go, Pause, Goto, GoFast, DefGo)
 from .playback import (
     blackout,
+    blind,
     def_go_back,
     def_go_forward,
     def_go_pause,
     flash_executor,
+    freeze,
     go,
     go_back,
     go_back_executor,
@@ -147,6 +150,7 @@ from .playback import (
     on_executor,
     pause_sequence,
     release_executor,
+    solo,
     solo_executor,
 )
 
@@ -160,13 +164,16 @@ from .selection import (
     select_fixture,
 )
 from .store import (
+    delete_show,
     load_show,
     new_show,
+    save_show,
     store,
     store_cue,
     store_cue_timed,
     store_group,
     store_preset,
+    update,
     update_cue,
 )
 
@@ -198,12 +205,15 @@ __all__ = [
     # Import/Export Function Keywords
     "export_object",
     "import_object",
-    # Store / Update
+    # Store / Update / Show management
     "store",
     "store_cue",
     "store_cue_timed",
     "store_group",
     "store_preset",
+    "save_show",
+    "delete_show",
+    "update",
     "update_cue",
     # SelFix
     "select_fixture",
@@ -253,10 +263,14 @@ __all__ = [
     "on_executor",
     "off_executor",
     "flash_executor",
+    "solo",
     "solo_executor",
     "release_executor",
     # Blackout
     "blackout",
+    # Blind / Freeze (universal toggles)
+    "blind",
+    "freeze",
     # Highlight
     "highlight",
     # Timecode goto
@@ -272,6 +286,8 @@ __all__ = [
     "copy_cue",
     # Move
     "move",
+    # Oops (undo)
+    "oops",
     # Assign
     "assign",
     "assign_delay",

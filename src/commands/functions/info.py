@@ -20,6 +20,7 @@ Included functions:
 """
 
 from ..constants import PRESET_TYPES
+from ..helpers import quote_name
 
 # ============================================================================
 # LIST FUNCTION KEYWORD
@@ -30,6 +31,8 @@ def list_objects(
     object_type: str | None = None,
     object_id: int | str | None = None,
     *,
+    name: str | None = None,
+    match_mode: str = "literal",
     end: int | None = None,
     filename: str | None = None,
     condition: str | None = None,
@@ -40,9 +43,15 @@ def list_objects(
     List is used to display show data in the command line feedback window, such as Cues, Groups,
     Presets, Messages, etc. If no object type is specified, it displays data for the current destination.
 
+    Supports name-based filtering with optional wildcard matching (MA2 wildcard spec):
+    - match_mode="literal"  (default): special chars in name are quoted (treated literally)
+    - match_mode="wildcard": name is emitted raw so '*' is a wildcard operator
+
     Args:
         object_type: Object type (e.g., "cue", "group", "preset", "attribute", "messages")
         object_id: Object ID or identifier (optional)
+        name: Name or wildcard pattern to filter by (optional)
+        match_mode: "literal" (default) or "wildcard" — controls quoting of name
         end: End ID for range (uses Thru)
         filename: Output CSV filename (saved to reports folder)
         condition: Condition filter (only for Messages)
@@ -61,6 +70,10 @@ def list_objects(
         'list preset "color"."m*"'
         >>> list_objects("group", filename="my_groups")
         'list group /filename=my_groups'
+        >>> list_objects("group", name="Mac700*", match_mode="wildcard")
+        'list group Mac700*'
+        >>> list_objects("group", name="Front*Wash")
+        'list group "Front*Wash"'
     """
     # Base command
     if object_type is None:
@@ -77,6 +90,10 @@ def list_objects(
     elif end is not None:
         # Only end, means "thru N"
         cmd = f"{cmd} thru {end}"
+
+    # Name-based filtering (with wildcard support)
+    if name is not None:
+        cmd = f"{cmd} {quote_name(name, match_mode)}"
 
     # Option handling
     if filename:
@@ -371,8 +388,10 @@ def list_macro_library() -> str:
 
 def info(
     object_type: str,
-    object_id: int | str,
+    object_id: int | str | None = None,
     *,
+    name: str | None = None,
+    match_mode: str = "literal",
     end: int | None = None,
     text: str | None = None,
 ) -> str:
@@ -382,9 +401,15 @@ def info(
     Info is used to add or display user information for an object.
     If text is provided, it sets the information; otherwise, it displays existing information.
 
+    Supports name-based selection with optional wildcard matching:
+    - match_mode="literal"  (default): special chars in name are quoted (treated literally)
+    - match_mode="wildcard": name is emitted raw so '*' is a wildcard operator
+
     Args:
         object_type: Object type (e.g., "group", "cue", "preset")
-        object_id: Object ID
+        object_id: Object ID (optional if name is given)
+        name: Name or wildcard pattern to select by (optional)
+        match_mode: "literal" (default) or "wildcard" — controls quoting of name
         end: End ID for range (uses Thru)
         text: Information text to add (optional; if not provided, displays existing information)
 
@@ -398,14 +423,21 @@ def info(
         'info group 3 "these fixtures are in the backtruss"'
         >>> info("cue", 1, end=5)
         'info cue 1 thru 5'
+        >>> info("group", name="Mac*", match_mode="wildcard")
+        'info group Mac*'
+        >>> info("group", name="Front*Wash")
+        'info group "Front*Wash"'
     """
-    # Build object part
-    if end is not None:
-        object_part = f"{object_type} {object_id} thru {end}"
-    else:
-        object_part = f"{object_type} {object_id}"
+    cmd = f"info {object_type}"
 
-    cmd = f"info {object_part}"
+    # Build object reference — ID takes priority, then name
+    if object_id is not None:
+        if end is not None:
+            cmd = f"{cmd} {object_id} thru {end}"
+        else:
+            cmd = f"{cmd} {object_id}"
+    elif name is not None:
+        cmd = f"{cmd} {quote_name(name, match_mode)}"
 
     # If text is provided, add the information
     if text is not None:

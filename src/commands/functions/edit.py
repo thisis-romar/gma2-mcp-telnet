@@ -795,3 +795,42 @@ def remove_effect(effect_id: int | str, *, end: int | None = None) -> str:
     if end is not None:
         return f"remove effect {effect_id} thru {end}"
     return f"remove effect {effect_id}"
+
+
+# ============================================================================
+# OOPS FUNCTION KEYWORD
+# ============================================================================
+
+
+def oops(
+    object_type: str | None = None,
+    object_id: int | str | None = None,
+) -> str:
+    """
+    Construct an Oops command to undo the last action.
+
+    Oops is universal — accepted by all 16 object types (live-verified).
+    When called bare (no arguments) it undoes the most recent action.
+    When called with an object it undoes the last action on that object.
+
+    Args:
+        object_type: Object type (optional — scopes undo to an object)
+        object_id: Object ID
+
+    Returns:
+        str: MA command string
+
+    Examples:
+        >>> oops()
+        'oops'
+        >>> oops("cue", 5)
+        'oops cue 5'
+        >>> oops("group", 3)
+        'oops group 3'
+    """
+    if object_type is not None and object_id is not None:
+        return f"oops {object_type} {object_id}"
+    if object_type is not None:
+        return f"oops {object_type}"
+    return "oops"
+

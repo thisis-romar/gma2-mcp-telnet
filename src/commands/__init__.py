@@ -46,6 +46,9 @@ from .constants import (
     STORE_VALUE_OPTIONS,
 )
 
+# Helpers (public API)
+from .helpers import MA2_SPECIAL_CHARS, quote_name
+
 # Function Keywords
 from .functions import (
     # Helping Keywords (Plus +, Minus -, And, If)
@@ -118,6 +121,8 @@ from .functions import (
     goto_cue,
     goto_timecode,
     group_at,
+    blind,
+    freeze,
     highlight,
     if_condition,
     # Info Function Keyword
@@ -141,6 +146,7 @@ from .functions import (
     list_oops,
     list_preset,
     list_shows,
+    oops,
     list_user_var,
     list_var,
     load_show,
@@ -149,6 +155,7 @@ from .functions import (
     macro_with_input_before,
     # Move Function Keyword
     move,
+    delete_show,
     new_show,
     off_executor,
     on_executor,
@@ -173,6 +180,8 @@ from .functions import (
     # Variable Function Keywords
     set_user_var,
     set_var,
+    save_show,
+    solo,
     solo_executor,
     store,
     store_cue,
@@ -181,6 +190,7 @@ from .functions import (
     store_preset,
     temp_fader,
     unpark,
+    update,
     update_cue,
 )
 
@@ -211,6 +221,9 @@ __all__ = [
     "STORE_FLAG_OPTIONS",
     "STORE_BOOL_OPTIONS",
     "STORE_VALUE_OPTIONS",
+    # Helpers (wildcard spec)
+    "MA2_SPECIAL_CHARS",
+    "quote_name",
     # Object Keywords
     "attribute",
     "feature",
@@ -338,8 +351,12 @@ __all__ = [
     "on_executor",
     "off_executor",
     "flash_executor",
+    "solo",
     "solo_executor",
     "release_executor",
+    # Blind / Freeze
+    "blind",
+    "freeze",
     # Highlight
     "highlight",
     # Timecode goto
@@ -368,11 +385,16 @@ __all__ = [
     # Show Management
     "load_show",
     "new_show",
+    "save_show",
+    "delete_show",
     # Navigation Function Keywords
     "changedest",
     # Store / Update
     "store_cue_timed",
+    "update",
     "update_cue",
+    # Oops (undo)
+    "oops",
     # Backward Compatibility Aliases
     "select_group",
     "call_preset",

@@ -625,3 +625,103 @@ def def_go_pause() -> str:
         'defgopause'
     """
     return "defgopause"
+
+
+def solo(
+    object_type: str | None = None,
+    object_id: int | str | None = None,
+) -> str:
+    """
+    Construct a Solo command to isolate an object (mute all others).
+
+    Solo is universal — accepted by all 16 object types (live-verified).
+    When called bare (no arguments) it solos the current selection.
+
+    Args:
+        object_type: Object type (executor, sequence, group, fixture, etc.)
+        object_id: Object ID
+
+    Returns:
+        str: MA command string
+
+    Examples:
+        >>> solo()
+        'solo'
+        >>> solo("executor", 3)
+        'solo executor 3'
+        >>> solo("group", 5)
+        'solo group 5'
+        >>> solo("sequence", 99)
+        'solo sequence 99'
+    """
+    if object_type is not None and object_id is not None:
+        return f"solo {object_type} {object_id}"
+    if object_type is not None:
+        return f"solo {object_type}"
+    return "solo"
+
+
+def blind(
+    object_type: str | None = None,
+    object_id: int | str | None = None,
+) -> str:
+    """
+    Construct a Blind command to toggle blind mode.
+
+    Blind is universal — accepted by all 16 object types (live-verified).
+    When called bare (no arguments) it toggles the global blind mode.
+
+    Args:
+        object_type: Object type (optional — scopes blind to an object)
+        object_id: Object ID
+
+    Returns:
+        str: MA command string
+
+    Examples:
+        >>> blind()
+        'blind'
+        >>> blind("executor", 3)
+        'blind executor 3'
+        >>> blind("sequence", 5)
+        'blind sequence 5'
+    """
+    if object_type is not None and object_id is not None:
+        return f"blind {object_type} {object_id}"
+    if object_type is not None:
+        return f"blind {object_type}"
+    return "blind"
+
+
+def freeze(
+    object_type: str | None = None,
+    object_id: int | str | None = None,
+) -> str:
+    """
+    Construct a Freeze command to freeze playback output.
+
+    Freeze is universal — accepted by all 16 object types (live-verified).
+    When called bare (no arguments) it freezes all output.
+
+    Args:
+        object_type: Object type (optional — scopes freeze to an object)
+        object_id: Object ID
+
+    Returns:
+        str: MA command string
+
+    Examples:
+        >>> freeze()
+        'freeze'
+        >>> freeze("executor", 3)
+        'freeze executor 3'
+        >>> freeze("sequence", 5)
+        'freeze sequence 5'
+        >>> freeze("fixture", 10)
+        'freeze fixture 10'
+    """
+    if object_type is not None and object_id is not None:
+        return f"freeze {object_type} {object_id}"
+    if object_type is not None:
+        return f"freeze {object_type}"
+    return "freeze"

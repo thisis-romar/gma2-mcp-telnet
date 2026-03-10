@@ -84,12 +84,22 @@ def select_fixture(
 # ============================================================================
 
 
-def highlight(on: bool = True) -> str:
+def highlight(
+    on: bool = True,
+    object_type: str | None = None,
+    object_id: int | str | None = None,
+) -> str:
     """
-    Toggle highlight mode for selected fixtures.
+    Toggle highlight mode, optionally scoped to an object.
+
+    Highlight is universal — accepted by all 16 object types (live-verified).
+    When called with an object it highlights that specific object.
+    When called bare it toggles highlight on/off for the current selection.
 
     Args:
-        on: True to enable, False to disable highlight
+        on: True to enable, False to disable highlight (only used when no object given)
+        object_type: Object type (optional — scopes highlight to an object)
+        object_id: Object ID
 
     Returns:
         str: MA command to toggle highlight
@@ -99,7 +109,15 @@ def highlight(on: bool = True) -> str:
         'highlight on'
         >>> highlight(False)
         'highlight off'
+        >>> highlight(object_type="executor", object_id=3)
+        'highlight executor 3'
+        >>> highlight(object_type="group", object_id=5)
+        'highlight group 5'
     """
+    if object_type is not None and object_id is not None:
+        return f"highlight {object_type} {object_id}"
+    if object_type is not None:
+        return f"highlight {object_type}"
     return f"highlight {'on' if on else 'off'}"
 
 

@@ -267,6 +267,101 @@ def new_show(name: str) -> str:
     return f'newshow "{name}"'
 
 
+def save_show(name: str | None = None) -> str:
+    """
+    Construct a SaveShow command to save the current show to disk.
+
+    SaveShow is universal — accepted by all object types (live-verified).
+    When called bare it saves the current show using its existing name.
+    When a name is provided it saves to a new file.
+
+    Args:
+        name: Show file name (optional — omit to save current show in place)
+
+    Returns:
+        str: MA command to save the show
+
+    Examples:
+        >>> save_show()
+        'saveshow'
+        >>> save_show("my_show")
+        'saveshow "my_show"'
+    """
+    if name is not None:
+        return f'saveshow "{name}"'
+    return "saveshow"
+
+
+def delete_show(name: str, *, noconfirm: bool = False) -> str:
+    """
+    Construct a DeleteShow command to delete a show file from disk.
+
+    Args:
+        name: Show file name to delete
+        noconfirm: Suppress the confirmation dialog
+
+    Returns:
+        str: MA command to delete a show file
+
+    Examples:
+        >>> delete_show("old_show")
+        'deleteshow "old_show"'
+        >>> delete_show("old_show", noconfirm=True)
+        'deleteshow "old_show" /noconfirm'
+    """
+    cmd = f'deleteshow "{name}"'
+    if noconfirm:
+        cmd += " /noconfirm"
+    return cmd
+
+
+def update(
+    object_type: str,
+    object_id: int | str,
+    *,
+    merge: bool = False,
+    overwrite: bool = False,
+    cueonly: bool | None = None,
+) -> str:
+    """
+    Construct a generic Update command for any object type.
+
+    Update is universal — accepted by all 16 object types (live-verified).
+    Use ``update_cue()`` for the richer cue-specific variant with sequence scoping.
+
+    Args:
+        object_type: Object type (group, preset, sequence, macro, etc.)
+        object_id: Object ID
+        merge: Merge programmer into existing values
+        overwrite: Overwrite existing values
+        cueonly: Prevent changes from tracking forward
+
+    Returns:
+        str: MA command to update an object
+
+    Examples:
+        >>> update("group", 3)
+        'update group 3'
+        >>> update("preset", "1.5", merge=True)
+        'update preset 1.5 /merge'
+        >>> update("sequence", 99, overwrite=True)
+        'update sequence 99 /overwrite'
+    """
+    cmd = f"update {object_type} {object_id}"
+    options = []
+    if merge:
+        options.append("/merge")
+    if overwrite:
+        options.append("/overwrite")
+    if cueonly is True:
+        options.append("/cueonly=true")
+    elif cueonly is False:
+        options.append("/cueonly=false")
+    if options:
+        cmd += " " + " ".join(options)
+    return cmd
+
+
 def store_group(group_id: int) -> str:
     """
     Construct a command to store a group.
