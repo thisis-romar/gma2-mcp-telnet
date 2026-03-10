@@ -4345,6 +4345,129 @@ async def set_fixture_type_property(
 
 
 # ============================================================
+# Wildcard Name Discovery
+# ============================================================
+
+# Object pool destinations that hold user-nameable objects.
+# Keyword form (e.g. "Group") and numeric cd-index form (e.g. "22") are both accepted.
+# Reference: CD_NUMERIC_INDEX in src/vocab.py — live-verified on MA2 3.9.60.65.
+# NOTE: System-config branches (cd 1=Showfile, cd 2=TimeConfig, cd 3=Settings …)
+#       are NOT object pools — they have property nodes, not named user objects.
+_OBJECT_POOL_DESTINATIONS: dict[str, str] = {
+    # keyword        numeric cd index
+    "Group":         "22",
+    "Sequence":      "25",
+    "Preset":        "17",
+    "Macro":         "13",
+    "Effect":        "24",
+    "Gel":           "16",
+    "World":         "18",
+    "Filter":        "19",
+    "Form":          "23",
+    "Timer":         "26",
+    "Layout":        "38",
+    "Timecode":      "35",
+    "Agenda":        "34",
+    "UserProfile":   "39",
+    "Camera":        "Camera",   # no separate numeric index — cd Camera
+    "MAtricks":      "MAtricks",
+    "View":          "View",
+    "Remote":        "36",
+}
+
+
+@mcp.tool()
+@_handle_errors
+async def discover_object_names(destination: str) -> str:
+    """
+    Navigate to an object pool and return all object names for wildcard pattern building.
+
+    This is the first step in the discover-names → derive-pattern → wildcard-command
+    workflow.  The returned names can be used directly with list_objects(),
+    info(), label(), etc. by passing them as the ``name`` argument with
+    ``match_mode="literal"`` (exact match) or deriving a ``*``-pattern and
+    using ``match_mode="wildcard"``.
+
+    CD scope covered
+    ----------------
+    Any destination accepted by navigate_console() works here:
+      - Keyword form:      "Group", "Sequence", "Preset", "Macro", "Effect", …
+      - Numeric index:     "22" (Groups), "25" (Sequences), "17" (Presets), …
+      - Dot-notation:      "10.3" (LiveSetup/FixtureTypes)
+
+    Object pool destinations (cd 1–42 that have named user objects):
+      Group=22, Sequence=25, Preset=17, Macro=13, Effect=24, Gel=16, World=18,
+      Filter=19, Form=23, Timer=26, Layout=38, Timecode=35, Agenda=34,
+      UserProfile=39, Remote=36.
+
+    System-config branches (cd 1=Showfile, cd 2=TimeConfig, cd 3=Settings,
+    cd 4=DMX_Protocols, …) hold property nodes, not named user objects — they
+    return empty names and are not useful for wildcard matching.
+
+    After this call the console is left at root (cd /).
+
+    Args:
+        destination: Object pool to inspect.  Any format accepted by
+            navigate_console: keyword ("Group"), numeric index ("22"),
+            or dot path ("10.3").
+
+    Returns:
+        str: JSON with destination, entries (id + name), names_only list,
+             and a wildcard_tip suggesting how to build a pattern.
+
+    Example workflow::
+
+        discover_object_names("Group")
+        # → names: ["Mac700 Front", "Mac700 Back", "Wash", "ALL LASERS"]
+
+        # Derive prefix pattern and use with list_objects:
+        # list_objects("group", name="Mac700*", match_mode="wildcard")
+        # → "list group Mac700*"
+    """
+    client = await get_client()
+
+    # Navigate to the destination
+    nav = await navigate(client, destination)
+
+    # List all objects there
+    lst = await list_destination(client)
+
+    # Collect non-empty names
+    named_entries = [
+        {"object_id": e.object_id, "name": e.name}
+        for e in lst.parsed_list.entries
+        if e.name
+    ]
+    names_only = [e["name"] for e in named_entries]
+
+    # Build a wildcard tip based on common prefix (if any)
+    tip = None
+    if names_only:
+        first = names_only[0]
+        prefix = first.split()[0] if " " in first else first
+        if len(names_only) > 1 and all(n.startswith(prefix) for n in names_only):
+            tip = f'Common prefix detected — try: name="{prefix}*", match_mode="wildcard"'
+        else:
+            tip = 'No common prefix — use exact names with match_mode="literal" or derive your own pattern'
+
+    # Return to root
+    await navigate(client, "/")
+
+    return json.dumps(
+        {
+            "destination": destination,
+            "navigate_command": nav.command_sent,
+            "entry_count": len(lst.parsed_list.entries),
+            "named_count": len(named_entries),
+            "entries": named_entries,
+            "names_only": names_only,
+            "wildcard_tip": tip,
+        },
+        indent=2,
+    )
+
+
+# ============================================================
 # Server Startup
 # ============================================================
 

@@ -15,6 +15,7 @@ Included functions:
 
 
 from ..constants import PRESET_TYPES
+from ..helpers import quote_name
 
 # ============================================================================
 # LABEL FUNCTION KEYWORD
@@ -90,11 +91,8 @@ def label(
     else:
         cmd = f"label {object_type} {object_id}"
 
-    # Add name (ensure it has quotes)
-    if name.startswith('"') and name.endswith('"'):
-        cmd += f" {name}"
-    else:
-        cmd += f' "{name}"'
+    # Add name — apply spec-correct quoting (Rule A: quote if special chars)
+    cmd += f" {quote_name(name)}"
 
     return cmd
 

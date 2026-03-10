@@ -35,19 +35,19 @@ class TestLabelCommands:
         result = label("preset", '"color"."Red"', "Dark Red")
         assert result == 'label preset "color"."Red" "Dark Red"'
 
-    def test_label_with_quoted_name(self):
-        """Test label with already quoted name."""
+    def test_label_with_plain_name(self):
+        """Plain names (no special chars) are emitted without quotes per MA2 spec."""
         from src.commands import label
 
-        result = label("macro", 1, '"My Macro"')
-        assert result == 'label macro 1 "My Macro"'
+        result = label("macro", 1, "MyMacro")
+        assert result == "label macro 1 MyMacro"
 
     def test_label_multiple_objects(self):
-        """Test label multiple objects."""
+        """Test label multiple objects — plain name, no quotes needed."""
         from src.commands import label
 
         result = label("group", [1, 2, 3], "Selected")
-        assert result == 'label group 1 + 2 + 3 "Selected"'
+        assert result == "label group 1 + 2 + 3 Selected"
 
 
 class TestAppearanceCommands:
