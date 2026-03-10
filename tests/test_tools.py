@@ -4096,7 +4096,7 @@ class TestNewShow:
         mock_get_client.return_value = mock_client
         result = await new_show(name="fresh", confirm_destructive=True)
         data = json.loads(result)
-        assert data["command_sent"] == 'newshow "fresh"'
+        assert data["command_sent"] == 'newshow "fresh" /noconfirm'
         assert data["blocked"] is False
 
 

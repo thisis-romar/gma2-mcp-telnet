@@ -3817,7 +3817,10 @@ async def new_show(
             "risk_tier": "DESTRUCTIVE",
         }, indent=2)
 
-    cmd = build_new_show(name)
+    # /noconfirm is always needed — the telnet connection is stateless
+    # (each call reconnects) so it cannot answer the console's
+    # "save old show first?" dialog mid-stream.
+    cmd = build_new_show(name, noconfirm=True)
     client = await get_client()
     raw = await client.send_command_with_response(cmd)
     return json.dumps({

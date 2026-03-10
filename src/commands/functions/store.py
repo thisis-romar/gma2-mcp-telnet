@@ -250,12 +250,16 @@ def load_show(name: str) -> str:
     return f'loadshow "{name}"'
 
 
-def new_show(name: str) -> str:
+def new_show(name: str, *, noconfirm: bool = False) -> str:
     """
     Construct a NewShow command to create a new empty show.
 
     Args:
         name: New show file name
+        noconfirm: Suppress the save-existing-show dialog (required when
+            an existing show is loaded, otherwise the console blocks
+            waiting for a [1]/2/3 response that can't be sent over a
+            stateless telnet connection)
 
     Returns:
         str: MA command to create a new show
@@ -263,8 +267,13 @@ def new_show(name: str) -> str:
     Examples:
         >>> new_show("my_new_show")
         'newshow "my_new_show"'
+        >>> new_show("my_new_show", noconfirm=True)
+        'newshow "my_new_show" /noconfirm'
     """
-    return f'newshow "{name}"'
+    cmd = f'newshow "{name}"'
+    if noconfirm:
+        cmd += " /noconfirm"
+    return cmd
 
 
 def save_show(name: str | None = None) -> str:
