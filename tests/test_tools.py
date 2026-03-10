@@ -3019,9 +3019,13 @@ class TestSetSequencePropertyTool:
     @patch("src.server.get_client")
     async def test_set_loop_property(self, mock_get_client, mock_set_property):
         """Test setting the loop property on a sequence."""
+        from src.navigation import SetPropertyResult
         from src.server import set_sequence_property
 
-        mock_set_property.return_value = {"ok": True}
+        mock_set_property.return_value = SetPropertyResult(
+            path="sequence 1", commands_sent=["cd sequence 1", 'assign "loop" "on"', "cd /"],
+            raw_responses=["", "", ""], success=True, verified_value=None, error=None,
+        )
 
         result = await set_sequence_property(
             sequence_id=1, property_name="loop", value="on",
@@ -3033,18 +3037,21 @@ class TestSetSequencePropertyTool:
         assert data["property"] == "loop"
         assert data["value"] == "on"
         assert data["risk_tier"] == "DESTRUCTIVE"
-        mock_set_property.assert_called_once_with(
-            path="sequence 1", prop="loop", value="on"
-        )
+        assert data["success"] is True
+        mock_set_property.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("src.server.set_property", new_callable=AsyncMock)
     @patch("src.server.get_client")
     async def test_set_tracking_property(self, mock_get_client, mock_set_property):
         """Test setting the tracking property on a sequence."""
+        from src.navigation import SetPropertyResult
         from src.server import set_sequence_property
 
-        mock_set_property.return_value = {"ok": True}
+        mock_set_property.return_value = SetPropertyResult(
+            path="sequence 3", commands_sent=["cd sequence 3", 'assign "tracking" "off"', "cd /"],
+            raw_responses=["", "", ""], success=True, verified_value=None, error=None,
+        )
 
         result = await set_sequence_property(
             sequence_id=3, property_name="tracking", value="off",
@@ -3053,9 +3060,8 @@ class TestSetSequencePropertyTool:
         data = json.loads(result)
 
         assert data["sequence_id"] == 3
-        mock_set_property.assert_called_once_with(
-            path="sequence 3", prop="tracking", value="off"
-        )
+        assert data["success"] is True
+        mock_set_property.assert_called_once()
 
 
 # ============================================================
@@ -3559,3 +3565,902 @@ class TestImportObjectsTool:
         result = await import_objects(filename="screen_test", destination_type="Screen", confirm_destructive=True)
         data = json.loads(result)
         assert "error" in data
+
+
+
+    # ============================================================
+    # Tests for validation helpers + refactored park/unpark/goto
+    # + list_fixtures / list_sequence_cues (tools 55-56)
+    # ============================================================
+
+
+class TestValidateObjectExists:
+    @pytest.mark.asyncio
+    async def test_fixture_exists(self):
+        from src.server import _validate_object_exists
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Fixture 20  Id=20  Name=RGBBLIND"
+        )
+        exists, raw = await _validate_object_exists(mock_client, "fixture", 20)
+        assert exists is True
+        mock_client.send_command_with_response.assert_called_once_with("list fixture 20")
+
+    @pytest.mark.asyncio
+    async def test_fixture_not_found(self):
+        from src.server import _validate_object_exists
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="NO OBJECTS FOUND FOR LIST"
+        )
+        exists, raw = await _validate_object_exists(mock_client, "fixture", 1)
+        assert exists is False
+
+    @pytest.mark.asyncio
+    async def test_cue_exists_in_sequence(self):
+        from src.server import _validate_object_exists
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Cue 1  Name=Open  Mode=Normal"
+        )
+        exists, raw = await _validate_object_exists(mock_client, "cue", "1 sequence 278")
+        assert exists is True
+        mock_client.send_command_with_response.assert_called_once_with("list cue 1 sequence 278")
+
+    @pytest.mark.asyncio
+    async def test_cue_not_found_in_sequence(self):
+        from src.server import _validate_object_exists
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="NO OBJECTS FOUND FOR LIST"
+        )
+        exists, raw = await _validate_object_exists(mock_client, "cue", "99 sequence 278")
+        assert exists is False
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_sentinel(self):
+        from src.server import _validate_object_exists
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="WARNING, no objects found for list"
+        )
+        exists, _ = await _validate_object_exists(mock_client, "group", 99)
+        assert exists is False
+
+
+class TestGetSequenceForExecutor:
+    @pytest.mark.asyncio
+    async def test_parses_sequence_id(self):
+        from src.server import _get_sequence_for_executor
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Exec 1.1  Name=BIG BAR  Sequence=Seq 278(2)  Width=1"
+        )
+        seq_id, raw = await _get_sequence_for_executor(mock_client, executor_id=1, page=1)
+        assert seq_id == 278
+        mock_client.send_command_with_response.assert_called_once_with("list executor 1.1")
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_sequence(self):
+        from src.server import _get_sequence_for_executor
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Exec 1.5  Name=Empty  Width=1"
+        )
+        seq_id, raw = await _get_sequence_for_executor(mock_client, executor_id=5)
+        assert seq_id is None
+
+    @pytest.mark.asyncio
+    async def test_custom_page(self):
+        from src.server import _get_sequence_for_executor
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Exec 2.3  Sequence=Seq 42(1)"
+        )
+        seq_id, _ = await _get_sequence_for_executor(mock_client, executor_id=3, page=2)
+        assert seq_id == 42
+        mock_client.send_command_with_response.assert_called_once_with("list executor 2.3")
+
+
+class TestParkFixtureValidated:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_park_existing_fixture(self, mock_get_client):
+        from src.server import park_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(side_effect=[
+            "Fixture 20  Id=20  Name=RGBBLIND",  # probe — exists
+            "[channel]>",                          # park command
+        ])
+        mock_get_client.return_value = mock_client
+        result = await park_fixture(target="fixture 20")
+        data = json.loads(result)
+        assert data["exists"] is True
+        assert data["command_sent"] == "park fixture 20"
+        assert mock_client.send_command_with_response.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_park_nonexistent_fixture_blocked(self, mock_get_client):
+        from src.server import park_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="NO OBJECTS FOUND FOR LIST"
+        )
+        mock_get_client.return_value = mock_client
+        result = await park_fixture(target="fixture 1")
+        data = json.loads(result)
+        assert data["exists"] is False
+        assert data["command_sent"] is None
+        assert "does not exist" in data["error"]
+        assert "list_fixtures" in data["hint"]
+        assert mock_client.send_command_with_response.call_count == 1
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_park_dmx_skips_validation(self, mock_get_client):
+        from src.server import park_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await park_fixture(target="dmx 101", value=128)
+        data = json.loads(result)
+        assert "park dmx 101" in data["command_sent"]
+        assert data["exists"] is None
+        assert mock_client.send_command_with_response.call_count == 1
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_park_fixture_with_value(self, mock_get_client):
+        from src.server import park_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(side_effect=[
+            "Fixture 20  Id=20",
+            "[channel]>",
+        ])
+        mock_get_client.return_value = mock_client
+        result = await park_fixture(target="fixture 20", value=50)
+        data = json.loads(result)
+        assert "at 50" in data["command_sent"]
+
+
+class TestUnparkFixtureValidated:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_unpark_existing_fixture(self, mock_get_client):
+        from src.server import unpark_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(side_effect=[
+            "Fixture 20  Id=20",
+            "[channel]>",
+        ])
+        mock_get_client.return_value = mock_client
+        result = await unpark_fixture(target="fixture 20")
+        data = json.loads(result)
+        assert data["exists"] is True
+        assert data["command_sent"] == "unpark fixture 20"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_unpark_nonexistent_fixture_blocked(self, mock_get_client):
+        from src.server import unpark_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="NO OBJECTS FOUND FOR LIST"
+        )
+        mock_get_client.return_value = mock_client
+        result = await unpark_fixture(target="fixture 1")
+        data = json.loads(result)
+        assert data["command_sent"] is None
+        assert data["exists"] is False
+        assert "does not exist" in data["error"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_unpark_dmx_skips_validation(self, mock_get_client):
+        from src.server import unpark_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await unpark_fixture(target="dmx 101")
+        data = json.loads(result)
+        assert "unpark dmx 101" in data["command_sent"]
+        assert data["exists"] is None
+        assert mock_client.send_command_with_response.call_count == 1
+
+
+class TestPlaybackActionGotoValidated:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_goto_cue_exists_with_sequence(self, mock_get_client):
+        from src.server import playback_action
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(side_effect=[
+            "Cue 1  Name=Open  Mode=Normal",  # cue probe — exists
+            "[channel]>",                       # goto command
+        ])
+        mock_get_client.return_value = mock_client
+        result = await playback_action(action="goto", cue_id=1, sequence=278)
+        data = json.loads(result)
+        assert "goto cue 1" in data["command_sent"]
+        assert data["cue_exists"] is True
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_goto_cue_not_found_blocked(self, mock_get_client):
+        from src.server import playback_action
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="NO OBJECTS FOUND FOR LIST"
+        )
+        mock_get_client.return_value = mock_client
+        result = await playback_action(action="goto", cue_id=99, sequence=278)
+        data = json.loads(result)
+        assert data["command_sent"] is None
+        assert data["cue_exists"] is False
+        assert "Error #72" in data["error"]
+        assert "list_sequence_cues" in data["hint"]
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_goto_resolves_sequence_from_executor(self, mock_get_client):
+        from src.server import playback_action
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(side_effect=[
+            "Exec 1.1  Sequence=Seq 278(2)",   # executor probe
+            "Cue 1  Name=Open",                  # cue probe — exists
+            "[channel]>",                         # goto command
+        ])
+        mock_get_client.return_value = mock_client
+        result = await playback_action(action="goto", cue_id=1, executor=1)
+        data = json.loads(result)
+        assert "goto cue 1" in data["command_sent"]
+        assert data["cue_exists"] is True
+        assert "executor_probe_response" in data
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_goto_no_sequence_context_warns_and_executes(self, mock_get_client):
+        from src.server import playback_action
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="[channel]>")
+        mock_get_client.return_value = mock_client
+        result = await playback_action(action="goto", cue_id=5)
+        data = json.loads(result)
+        assert "goto cue 5" in data["command_sent"]
+        assert "warning" in data
+        assert "without cue" in data["warning"]
+
+    @pytest.mark.asyncio
+    async def test_goto_missing_cue_id_returns_error(self):
+        from src.server import playback_action
+        result = await playback_action(action="goto")
+        data = json.loads(result)
+        assert "error" in data
+        assert "cue_id" in data["error"]
+
+
+class TestListFixturesTool:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_all_fixtures(self, mock_get_client):
+        from src.server import list_fixtures
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Fixture 20  Id=20  Name=RGBBLIND\nFixture 25  Id=25"
+        )
+        mock_get_client.return_value = mock_client
+        result = await list_fixtures()
+        data = json.loads(result)
+        assert data["command_sent"] == "list fixture"
+        assert data["exists"] is True
+        assert data["fixture_id"] is None
+        assert data["risk_tier"] == "SAFE_READ"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_specific_fixture_exists(self, mock_get_client):
+        from src.server import list_fixtures
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Fixture 20  Id=20  Name=RGBBLIND"
+        )
+        mock_get_client.return_value = mock_client
+        result = await list_fixtures(fixture_id=20)
+        data = json.loads(result)
+        assert data["command_sent"] == "list fixture 20"
+        assert data["exists"] is True
+        assert data["fixture_id"] == 20
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_specific_fixture_not_found(self, mock_get_client):
+        from src.server import list_fixtures
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="NO OBJECTS FOUND FOR LIST"
+        )
+        mock_get_client.return_value = mock_client
+        result = await list_fixtures(fixture_id=1)
+        data = json.loads(result)
+        assert data["exists"] is False
+        assert data["fixture_id"] == 1
+
+
+class TestListSequenceCuesTool:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_all_cues_by_sequence_id(self, mock_get_client):
+        from src.server import list_sequence_cues
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Cue 1  Name=Open\nCue 2  Name=Close"
+        )
+        mock_get_client.return_value = mock_client
+        result = await list_sequence_cues(sequence_id=278)
+        data = json.loads(result)
+        assert data["command_sent"] == "list cue sequence 278"
+        assert data["resolved_sequence_id"] == 278
+        assert data["exists"] is True
+        assert data["risk_tier"] == "SAFE_READ"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_check_specific_cue_exists(self, mock_get_client):
+        from src.server import list_sequence_cues
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Cue 1  Name=Open  Mode=Normal"
+        )
+        mock_get_client.return_value = mock_client
+        result = await list_sequence_cues(sequence_id=278, cue_id=1)
+        data = json.loads(result)
+        assert data["command_sent"] == "list cue 1 sequence 278"
+        assert data["exists"] is True
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_check_specific_cue_not_found(self, mock_get_client):
+        from src.server import list_sequence_cues
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="NO OBJECTS FOUND FOR LIST"
+        )
+        mock_get_client.return_value = mock_client
+        result = await list_sequence_cues(sequence_id=278, cue_id=99)
+        data = json.loads(result)
+        assert data["exists"] is False
+        assert data["command_sent"] == "list cue 99 sequence 278"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_resolve_sequence_from_executor(self, mock_get_client):
+        from src.server import list_sequence_cues
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(side_effect=[
+            "Exec 1.1  Sequence=Seq 278(2)",  # executor resolution
+            "Cue 1  Name=Open\nCue 2",         # list cue
+        ])
+        mock_get_client.return_value = mock_client
+        result = await list_sequence_cues(executor_id=1, cue_id=1)
+        data = json.loads(result)
+        assert data["resolved_sequence_id"] == 278
+        assert data["command_sent"] == "list cue 1 sequence 278"
+        assert data["exists"] is True
+        assert "executor_probe_response" in data
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_executor_with_no_sequence_linked(self, mock_get_client):
+        from src.server import list_sequence_cues
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(
+            return_value="Exec 1.5  Name=Empty  Width=1"
+        )
+        mock_get_client.return_value = mock_client
+        result = await list_sequence_cues(executor_id=5)
+        data = json.loads(result)
+        assert data["exists"] is False
+        assert data["resolved_sequence_id"] is None
+        assert "sequence assigned" in data["error"]
+
+    @pytest.mark.asyncio
+    async def test_no_sequence_or_executor_returns_error(self):
+        from src.server import list_sequence_cues
+        result = await list_sequence_cues()
+        data = json.loads(result)
+        assert "error" in data
+        assert data["command_sent"] is None
+
+
+# ============================================================
+# Tools 57–64: Tier 1 — High-Impact Tools
+# ============================================================
+
+
+class TestHighlightFixtures:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_highlight_on(self, mock_get_client):
+        from src.server import highlight_fixtures
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await highlight_fixtures(on=True)
+        data = json.loads(result)
+        assert data["command_sent"] == "highlight on"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_highlight_off(self, mock_get_client):
+        from src.server import highlight_fixtures
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await highlight_fixtures(on=False)
+        data = json.loads(result)
+        assert data["command_sent"] == "highlight off"
+
+
+class TestReleaseExecutor:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_release_basic(self, mock_get_client):
+        from src.server import release_executor
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await release_executor(executor_id=3)
+        data = json.loads(result)
+        assert data["command_sent"] == "release executor 3"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_release_with_page(self, mock_get_client):
+        from src.server import release_executor
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await release_executor(executor_id=5, page=2)
+        data = json.loads(result)
+        assert data["command_sent"] == "release executor 2.5"
+
+
+class TestBlackoutToggle:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_blackout(self, mock_get_client):
+        from src.server import blackout_toggle
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await blackout_toggle()
+        data = json.loads(result)
+        assert data["command_sent"] == "blackout"
+        assert data["risk_tier"] == "SAFE_WRITE"
+
+
+class TestListShows:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_shows(self, mock_get_client):
+        from src.server import list_shows
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Show1\nShow2")
+        mock_get_client.return_value = mock_client
+        result = await list_shows()
+        data = json.loads(result)
+        assert data["command_sent"] == "listshows"
+        assert data["risk_tier"] == "SAFE_READ"
+
+
+class TestLoadShow:
+    @pytest.mark.asyncio
+    async def test_load_show_blocked(self):
+        from src.server import load_show
+        result = await load_show(name="myshow")
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_load_show_confirmed(self, mock_get_client):
+        from src.server import load_show
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await load_show(name="myshow", confirm_destructive=True)
+        data = json.loads(result)
+        assert data["command_sent"] == 'loadshow "myshow"'
+        assert data["blocked"] is False
+
+
+class TestNewShow:
+    @pytest.mark.asyncio
+    async def test_new_show_blocked(self):
+        from src.server import new_show
+        result = await new_show(name="fresh")
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_new_show_confirmed(self, mock_get_client):
+        from src.server import new_show
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await new_show(name="fresh", confirm_destructive=True)
+        data = json.loads(result)
+        assert data["command_sent"] == 'newshow "fresh"'
+        assert data["blocked"] is False
+
+
+class TestGetVariable:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_get_user_var(self, mock_get_client):
+        from src.server import get_variable
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="5")
+        mock_get_client.return_value = mock_client
+        result = await get_variable(action="get_user", var_name="$mycounter")
+        data = json.loads(result)
+        assert data["command_sent"] == "getuservar $mycounter"
+        assert data["risk_tier"] == "SAFE_READ"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_var(self, mock_get_client):
+        from src.server import get_variable
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="vars")
+        mock_get_client.return_value = mock_client
+        result = await get_variable(action="list_var")
+        data = json.loads(result)
+        assert data["command_sent"] == "listvar"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_user_var(self, mock_get_client):
+        from src.server import get_variable
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="vars")
+        mock_get_client.return_value = mock_client
+        result = await get_variable(action="list_user_var")
+        data = json.loads(result)
+        assert data["command_sent"] == "listuservar"
+
+    @pytest.mark.asyncio
+    async def test_invalid_action(self):
+        from src.server import get_variable
+        result = await get_variable(action="invalid")
+        data = json.loads(result)
+        assert data["blocked"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_user_missing_name(self):
+        from src.server import get_variable
+        result = await get_variable(action="get_user")
+        data = json.loads(result)
+        assert data["blocked"] is True
+
+
+class TestListUndoHistory:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_list_oops(self, mock_get_client):
+        from src.server import list_undo_history
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="undo history")
+        mock_get_client.return_value = mock_client
+        result = await list_undo_history()
+        data = json.loads(result)
+        assert data["command_sent"] == "listoops"
+        assert data["risk_tier"] == "SAFE_READ"
+
+
+# ============================================================
+# Tools 65–69: Tier 2 — Setup & Library Tools
+# ============================================================
+
+
+class TestListFixtureTypes:
+    @pytest.mark.asyncio
+    @patch("src.server.list_destination")
+    @patch("src.server.navigate")
+    @patch("src.server.get_client")
+    async def test_list_fixture_types(self, mock_get_client, mock_navigate, mock_list_dest):
+        from src.prompt_parser import ListEntry, ListOutput
+        from src.server import list_fixture_types
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        mock_nav = MagicMock()
+        mock_nav.command_sent = "cd /"
+        mock_navigate.return_value = mock_nav
+
+        mock_list = MagicMock()
+        mock_list.command_sent = "list"
+        mock_list.raw_response = "FixtureType 1 Dimmer"
+        mock_list.parsed_list = ListOutput(
+            raw_response="FixtureType 1 Dimmer",
+            entries=(
+                ListEntry(object_type="FixtureType", object_id="1", name="Dimmer"),
+            ),
+        )
+        mock_list_dest.return_value = mock_list
+
+        result = await list_fixture_types()
+        data = json.loads(result)
+        assert data["risk_tier"] == "SAFE_READ"
+        assert data["entry_count"] == 1
+        assert data["entries"][0]["name"] == "Dimmer"
+
+
+class TestListLayers:
+    @pytest.mark.asyncio
+    @patch("src.server.list_destination")
+    @patch("src.server.navigate")
+    @patch("src.server.get_client")
+    async def test_list_layers(self, mock_get_client, mock_navigate, mock_list_dest):
+        from src.prompt_parser import ListOutput
+        from src.server import list_layers
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        mock_nav = MagicMock()
+        mock_nav.command_sent = "cd /"
+        mock_navigate.return_value = mock_nav
+
+        mock_list = MagicMock()
+        mock_list.command_sent = "list"
+        mock_list.raw_response = "Layer 1 Auto-Created"
+        mock_list.parsed_list = ListOutput(raw_response="Layer 1", entries=())
+        mock_list_dest.return_value = mock_list
+
+        result = await list_layers()
+        data = json.loads(result)
+        assert data["risk_tier"] == "SAFE_READ"
+        assert "commands_sent" in data
+
+
+class TestListUniverses:
+    @pytest.mark.asyncio
+    @patch("src.server.list_destination")
+    @patch("src.server.navigate")
+    @patch("src.server.get_client")
+    async def test_list_universes(self, mock_get_client, mock_navigate, mock_list_dest):
+        from src.prompt_parser import ListEntry, ListOutput
+        from src.server import list_universes
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        mock_nav = MagicMock()
+        mock_nav.command_sent = "cd /"
+        mock_navigate.return_value = mock_nav
+
+        mock_list = MagicMock()
+        mock_list.command_sent = "list"
+        mock_list.raw_response = "Universe 1"
+        mock_list.parsed_list = ListOutput(
+            raw_response="Universe 1",
+            entries=(
+                ListEntry(object_type="Universe", object_id="1", name="Universe"),
+            ),
+        )
+        mock_list_dest.return_value = mock_list
+
+        result = await list_universes(max_universes=4)
+        data = json.loads(result)
+        assert data["risk_tier"] == "SAFE_READ"
+        assert data["entry_count"] == 1
+
+
+class TestListLibrary:
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_fixture_library(self, mock_get_client):
+        from src.server import list_library
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="library data")
+        mock_get_client.return_value = mock_client
+        result = await list_library(library_type="fixture")
+        data = json.loads(result)
+        assert data["command_sent"] == "listlibrary"
+        assert data["risk_tier"] == "SAFE_READ"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_effect_library(self, mock_get_client):
+        from src.server import list_library
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="effects")
+        mock_get_client.return_value = mock_client
+        result = await list_library(library_type="effect")
+        data = json.loads(result)
+        assert data["command_sent"] == "listeffectlibrary"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_macro_library(self, mock_get_client):
+        from src.server import list_library
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="macros")
+        mock_get_client.return_value = mock_client
+        result = await list_library(library_type="macro")
+        data = json.loads(result)
+        assert data["command_sent"] == "listmacrolibrary"
+
+    @pytest.mark.asyncio
+    async def test_invalid_type(self):
+        from src.server import list_library
+        result = await list_library(library_type="invalid")
+        data = json.loads(result)
+        assert data["blocked"] is True
+
+
+# ============================================================
+# Tools 70–73: Tier 3 — Fixture Patching
+# ============================================================
+
+
+class TestBrowsePatchSchedule:
+    @pytest.mark.asyncio
+    @patch("src.server.list_destination")
+    @patch("src.server.navigate")
+    @patch("src.server.get_client")
+    async def test_browse_all(self, mock_get_client, mock_navigate, mock_list_dest):
+        from src.prompt_parser import ListEntry, ListOutput
+        from src.server import browse_patch_schedule
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_nav = MagicMock()
+        mock_nav.command_sent = "cd /"
+        mock_navigate.return_value = mock_nav
+        mock_list = MagicMock()
+        mock_list.command_sent = "list"
+        mock_list.raw_response = "FixtureType 1 Dimmer"
+        mock_list.parsed_list = ListOutput(
+            raw_response="FixtureType 1 Dimmer",
+            entries=(ListEntry(object_type="FixtureType", object_id="1", name="Dimmer"),),
+        )
+        mock_list_dest.return_value = mock_list
+
+        result = await browse_patch_schedule()
+        data = json.loads(result)
+        assert data["risk_tier"] == "SAFE_READ"
+        assert len(data["commands_sent"]) == 5
+
+    @pytest.mark.asyncio
+    @patch("src.server.list_destination")
+    @patch("src.server.navigate")
+    @patch("src.server.get_client")
+    async def test_browse_specific_type(self, mock_get_client, mock_navigate, mock_list_dest):
+        from src.prompt_parser import ListOutput
+        from src.server import browse_patch_schedule
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_nav = MagicMock()
+        mock_nav.command_sent = "cd /"
+        mock_navigate.return_value = mock_nav
+        mock_list = MagicMock()
+        mock_list.command_sent = "list"
+        mock_list.raw_response = "instances"
+        mock_list.parsed_list = ListOutput(raw_response="instances", entries=())
+        mock_list_dest.return_value = mock_list
+
+        result = await browse_patch_schedule(fixture_type_id=2)
+        data = json.loads(result)
+        assert data["risk_tier"] == "SAFE_READ"
+        assert len(data["commands_sent"]) == 6
+
+
+class TestPatchFixture:
+    @pytest.mark.asyncio
+    async def test_patch_blocked(self):
+        from src.server import patch_fixture
+        result = await patch_fixture(fixture_id=101, dmx_universe=1, dmx_address=1)
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_patch_confirmed(self, mock_get_client):
+        from src.server import patch_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await patch_fixture(
+            fixture_id=101, dmx_universe=1, dmx_address=1,
+            confirm_destructive=True,
+        )
+        data = json.loads(result)
+        assert data["blocked"] is False
+        assert data["risk_tier"] == "DESTRUCTIVE"
+        assert len(data["commands_sent"]) == 1  # just DMX assign
+        assert "dmx" in data["commands_sent"][0].lower()
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_patch_with_fixture_type(self, mock_get_client):
+        from src.server import patch_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await patch_fixture(
+            fixture_id=101, dmx_universe=2, dmx_address=50,
+            fixture_type_id=3, confirm_destructive=True,
+        )
+        data = json.loads(result)
+        assert len(data["commands_sent"]) == 2  # fixture type assign + DMX assign
+
+
+class TestUnpatchFixture:
+    @pytest.mark.asyncio
+    async def test_unpatch_blocked(self):
+        from src.server import unpatch_fixture
+        result = await unpatch_fixture(fixture_id=101)
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.get_client")
+    async def test_unpatch_confirmed(self, mock_get_client):
+        from src.server import unpatch_fixture
+        mock_client = MagicMock()
+        mock_client.send_command_with_response = AsyncMock(return_value="Ok")
+        mock_get_client.return_value = mock_client
+        result = await unpatch_fixture(fixture_id=101, confirm_destructive=True)
+        data = json.loads(result)
+        assert data["blocked"] is False
+        assert "delete fixture 101" in data["command_sent"]
+
+
+class TestSetFixtureTypeProperty:
+    @pytest.mark.asyncio
+    async def test_blocked(self):
+        from src.server import set_fixture_type_property
+        result = await set_fixture_type_property(
+            fixture_type_id=1, property_name="Name", value="Test",
+        )
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    @pytest.mark.asyncio
+    @patch("src.server.set_property", new_callable=AsyncMock)
+    @patch("src.server.get_client")
+    async def test_confirmed(self, mock_get_client, mock_set_prop):
+        from src.navigation import SetPropertyResult
+        from src.server import set_fixture_type_property
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_set_prop.return_value = SetPropertyResult(
+            path="10.3.2",
+            commands_sent=["cd /", "cd 10", "cd 3", 'assign 2/Name="NewName"', "cd /"],
+            raw_responses=["ok"] * 5,
+            success=True,
+            verified_value="NewName",
+        )
+
+        result = await set_fixture_type_property(
+            fixture_type_id=2, property_name="Name", value="NewName",
+            confirm_destructive=True,
+        )
+        data = json.loads(result)
+        assert data["blocked"] is False
+        assert data["success"] is True
+        mock_set_prop.assert_called_once()

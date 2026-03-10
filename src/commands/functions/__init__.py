@@ -91,8 +91,13 @@ from .info import (
     list_cue,
     list_group,
     list_messages,
+    list_effect_library,
+    list_library,
+    list_macro_library,
     list_objects,
+    list_oops,
     list_preset,
+    list_shows,
 )
 
 # Labeling Function Keywords (Label, Appearance)
@@ -122,6 +127,7 @@ from .park import (
 
 # Playback Function Keywords (Go, Pause, Goto, GoFast, DefGo)
 from .playback import (
+    blackout,
     def_go_back,
     def_go_forward,
     def_go_pause,
@@ -140,6 +146,7 @@ from .playback import (
     off_executor,
     on_executor,
     pause_sequence,
+    release_executor,
     solo_executor,
 )
 
@@ -149,9 +156,12 @@ from .selection import (
     clear_active,
     clear_all,
     clear_selection,
+    highlight,
     select_fixture,
 )
 from .store import (
+    load_show,
+    new_show,
     store,
     store_cue,
     store_cue_timed,
@@ -177,6 +187,9 @@ from .values import (
 from .variables import (
     add_user_var,
     add_var,
+    get_user_var,
+    list_user_var,
+    list_var,
     set_user_var,
     set_var,
 )
@@ -236,11 +249,16 @@ __all__ = [
     "def_go_back",
     "def_go_forward",
     "def_go_pause",
-    # Executor on/off/flash/solo
+    # Executor on/off/flash/solo/release
     "on_executor",
     "off_executor",
     "flash_executor",
     "solo_executor",
+    "release_executor",
+    # Blackout
+    "blackout",
+    # Highlight
+    "highlight",
     # Timecode goto
     "goto_timecode",
     # Edit
@@ -282,6 +300,12 @@ __all__ = [
     "list_preset",
     "list_attribute",
     "list_messages",
+    # List* (specialized)
+    "list_shows",
+    "list_oops",
+    "list_library",
+    "list_effect_library",
+    "list_macro_library",
     # Info
     "info",
     "info_group",
@@ -308,6 +332,12 @@ __all__ = [
     "set_var",
     "add_user_var",
     "add_var",
+    "get_user_var",
+    "list_var",
+    "list_user_var",
+    # Show Management
+    "load_show",
+    "new_show",
     # Navigation Function Keywords
     "changedest",
     # Backward Compatibility Aliases

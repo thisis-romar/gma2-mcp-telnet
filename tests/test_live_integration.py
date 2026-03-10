@@ -1,5 +1,5 @@
 """
-Live Integration Tests — All 28 MCP Tools
+Live Integration Tests — All 56 MCP Tools
 
 Tests every MCP tool against a real grandMA2 console via telnet.
 Organized into 8 layers by risk and dependency:
@@ -35,33 +35,76 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 # All tool functions are imported directly from the server module
 from src.server import (  # noqa: E402
+    adjust_value_relative,
     apply_preset,
+    assign_cue_trigger,
+    assign_executor_property,
     assign_object,
+    blackout_toggle,
+    browse_patch_schedule,
     clear_programmer,
+    control_executor,
+    control_timecode,
+    control_timer,
     copy_or_move_object,
     create_fixture_group,
     delete_object,
     edit_object,
     execute_sequence,
+    export_objects,
     get_client,
     get_console_location,
+    get_executor_status,
     get_object_info,
+    get_variable,
+    highlight_fixtures,
+    if_filter,
+    import_objects,
     label_or_appearance,
     list_console_destination,
+    list_fixture_types,
+    list_fixtures,
+    list_layers,
+    list_library,
+    list_sequence_cues,
+    list_shows,
+    list_undo_history,
+    list_universes,
+    load_show,
     manage_variable,
+    modify_selection,
     navigate_console,
+    navigate_page,
+    new_show,
     park_fixture,
     playback_action,
     query_object_list,
+    release_executor,
     remove_content,
+    remove_from_programmer,
+    run_macro,
+    save_recall_view,
+    save_show,
     scan_console_indexes,
+    search_codebase,
+    select_executor,
+    select_fixtures_by_group,
     send_raw_command,
     set_attribute,
+    set_cue_timing,
+    set_executor_level,
     set_intensity,
+    set_node_property,
+    set_sequence_property,
+    store_cue_with_timing,
     store_current_cue,
     store_new_preset,
     store_object,
+    store_timecode_event,
+    toggle_console_mode,
+    undo_last_action,
     unpark_fixture,
+    update_cue_data,
 )
 
 # ---------------------------------------------------------------------------
@@ -178,10 +221,10 @@ class TestLayer0SafeRead:
             assert "entries" in r
 
     async def test_get_object_info_fixture(self, live_client):
-        """0.4 — Get info on fixture 1."""
-        result = await get_object_info("fixture", 1)
+        """0.4 — Get info on fixture 101."""
+        result = await get_object_info("fixture", 101)
         data = validate_response(result, ["command_sent", "raw_response"])
-        assert data["command_sent"] == "info fixture 1"
+        assert data["command_sent"] == "info fixture 101"
 
     async def test_query_list_cue(self, live_client):
         """0.5 — List cues."""
@@ -218,6 +261,40 @@ class TestLayer0SafeRead:
         result = await query_object_list("sequence")
         data = validate_response(result, ["command_sent", "raw_response"])
         assert "sequence" in data["command_sent"].lower()
+
+    async def test_list_fixtures(self, live_client):
+        """0.11 — List all fixtures."""
+        result = await list_fixtures()
+        data = validate_response(result, ["command_sent", "raw_response", "exists"])
+        assert data["command_sent"] == "list fixture"
+
+    async def test_list_fixtures_specific(self, live_client):
+        """0.12 — Check specific fixture by ID."""
+        result = await list_fixtures(fixture_id=101)
+        data = validate_response(result, ["command_sent", "raw_response", "exists"])
+        assert "fixture 101" in data["command_sent"].lower()
+        # exists depends on show file — just verify the tool ran
+
+    async def test_list_sequence_cues(self, live_client):
+        """0.13 — List cues in sequence 1."""
+        result = await list_sequence_cues(sequence_id=1)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "sequence" in data["command_sent"].lower()
+
+    async def test_get_executor_status(self, live_client):
+        """0.14 — Query all executor status."""
+        result = await get_executor_status()
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "list executor"
+
+    async def test_search_codebase(self, live_client):
+        """0.15 — Search RAG codebase index."""
+        result = await search_codebase("store cue", top_k=3)
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)[:500]}")
+        # May return a list of hits or an error dict if RAG DB not built
+        if isinstance(data, dict) and data.get("blocked"):
+            pytest.skip("RAG index not built")
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +374,23 @@ class TestLayer1NavigationState:
         data = validate_response(result, ["blocked"])
         assert data["blocked"] is True
 
+    async def test_set_node_property(self, live_client):
+        """1.12 — Set a node property (idempotent re-set)."""
+        result = await set_node_property(
+            "3.1", "Telnet", "Login Enabled", verify=True,
+        )
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)}")
+        assert "commands_sent" in data
+
+    async def test_undo_last_action(self, live_client):
+        """1.13 — Undo last action (oops x1)."""
+        result = await undo_last_action(count=1)
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)}")
+        assert data["commands_sent"] == ["oops"]
+        assert data["count"] == 1
+
 
 # ---------------------------------------------------------------------------
 # Layer 2 — Selection & Group Creation (SAFE_WRITE)
@@ -310,7 +404,7 @@ class TestLayer2SelectionGroups:
     async def test_create_fixture_group(self, live_client):
         """2.1 — Create a fixture group (ID 99)."""
         # create_fixture_group returns a plain string, not JSON
-        result = await create_fixture_group(1, 4, 99, "Live Test Group")
+        result = await create_fixture_group(101, 104, 99, "Live Test Group")
         print(f"  Response: {result}")
         assert "Group 99" in result
         assert "error" not in result.lower()
@@ -320,6 +414,22 @@ class TestLayer2SelectionGroups:
         result = await get_object_info("group", 99)
         data = validate_response(result, ["command_sent", "raw_response"])
         assert data["raw_response"] is not None
+
+    async def test_select_fixtures_by_group(self, live_client):
+        """2.3 — Select fixtures via group 99."""
+        result = await select_fixtures_by_group(group_id=99)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "group 99" in data["command_sent"].lower()
+
+    async def test_modify_selection_add(self, live_client):
+        """2.4 — Add fixture 101 to selection."""
+        result = await modify_selection("add", fixture_ids=[101])
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_modify_selection_clear(self, live_client):
+        """2.5 — Clear selection."""
+        result = await modify_selection("clear")
+        data = validate_response(result, ["command_sent", "raw_response"])
 
 
 # ---------------------------------------------------------------------------
@@ -332,10 +442,10 @@ class TestLayer3LightControl:
     """Set intensity, attributes, presets, park/unpark."""
 
     async def test_set_intensity_fixture(self, live_client):
-        """3.1 — Set intensity on fixture 1."""
-        result = await set_intensity("fixture", 1, 50)
+        """3.1 — Set intensity on fixture 101."""
+        result = await set_intensity("fixture", 101, 50)
         data = validate_response(result, ["command_sent", "raw_response"])
-        assert "fixture 1" in data["command_sent"].lower()
+        assert "fixture 101" in data["command_sent"].lower()
         assert "50" in data["command_sent"]
 
     async def test_set_intensity_group(self, live_client):
@@ -358,24 +468,88 @@ class TestLayer3LightControl:
         assert len(data["commands_sent"]) == 2  # select + call
 
     async def test_park_fixture(self, live_client):
-        """3.5 — Park fixture 1."""
-        result = await park_fixture("fixture 1")
-        data = validate_response(result, ["command_sent", "raw_response"])
-        assert "park" in data["command_sent"].lower()
-        assert "fixture 1" in data["command_sent"].lower()
+        """3.5 — Park fixture 101."""
+        result = await park_fixture("fixture 101")
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)}")
+        if data.get("exists") is False:
+            assert data["command_sent"] is None
+            assert "error" in data
+        else:
+            assert data["command_sent"] is not None
+            assert "park" in data["command_sent"].lower()
+            assert "fixture 101" in data["command_sent"].lower()
+            assert "raw_response" in data
 
     async def test_unpark_fixture(self, live_client):
-        """3.6 — Unpark fixture 1."""
-        result = await unpark_fixture("fixture 1")
-        data = validate_response(result, ["command_sent", "raw_response"])
-        assert "unpark" in data["command_sent"].lower()
-        assert "fixture 1" in data["command_sent"].lower()
+        """3.6 — Unpark fixture 101."""
+        result = await unpark_fixture("fixture 101")
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)}")
+        if data.get("exists") is False:
+            assert data["command_sent"] is None
+            assert "error" in data
+        else:
+            assert data["command_sent"] is not None
+            assert "unpark" in data["command_sent"].lower()
+            assert "fixture 101" in data["command_sent"].lower()
+            assert "raw_response" in data
 
     async def test_clear_after_control(self, live_client):
         """3.7 — Clear programmer after light control tests."""
         result = await clear_programmer("all")
         data = validate_response(result, ["command_sent", "raw_response"])
         assert data["command_sent"] == "clearall"
+
+    async def test_adjust_value_relative(self, live_client):
+        """3.8 — Nudge dimmer +5 on fixture 101."""
+        await set_intensity("fixture", 101, 50)
+        result = await adjust_value_relative(delta=5, fixture_ids=[101])
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)}")
+        assert "commands_sent" in data
+
+    async def test_toggle_console_mode_blind(self, live_client):
+        """3.9 — Toggle blind mode on and off."""
+        result_on = await toggle_console_mode("blind")
+        data_on = validate_response(result_on, ["command_sent", "raw_response"])
+        assert data_on["command_sent"] == "blind"
+        # Toggle back off
+        result_off = await toggle_console_mode("blind")
+        validate_response(result_off, ["command_sent", "raw_response"])
+
+    async def test_if_filter_active(self, live_client):
+        """3.10 — Apply bare If filter (active fixtures)."""
+        result = await if_filter("active")
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "if"
+
+    async def test_remove_from_programmer(self, live_client):
+        """3.11 — Remove fixture 101 from programmer via Off."""
+        result = await remove_from_programmer("fixture", 101)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "off" in data["command_sent"].lower()
+
+    async def test_navigate_page_next(self, live_client):
+        """3.12 — Navigate to next executor page."""
+        result = await navigate_page("next")
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_navigate_page_previous(self, live_client):
+        """3.13 — Navigate to previous executor page (restore)."""
+        result = await navigate_page("previous")
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_set_executor_level(self, live_client):
+        """3.14 — Set executor 201 fader to 0%."""
+        result = await set_executor_level(executor_id=201, level=0.0)
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_select_executor(self, live_client):
+        """3.15 — Select executor 201."""
+        result = await select_executor(executor_id=201)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "select" in data["command_sent"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -390,7 +564,7 @@ class TestLayer4Programming:
 
     async def test_setup_programmer(self, live_client):
         """4.1 — Load programmer with fixture intensity."""
-        result = await set_intensity("fixture", 1, 80)
+        result = await set_intensity("fixture", 101, 80)
         data = validate_response(result, ["command_sent", "raw_response"])
         assert "80" in data["command_sent"]
 
@@ -411,7 +585,7 @@ class TestLayer4Programming:
     async def test_store_new_preset(self, live_client):
         """4.4 — Store programmer as dimmer preset 99."""
         # Ensure programmer has content
-        await set_intensity("fixture", 1, 80)
+        await set_intensity("fixture", 101, 80)
         result = await store_new_preset("dimmer", 99)
         data = validate_response(result, ["command_sent", "raw_response"])
         assert "store" in data["command_sent"].lower()
@@ -457,6 +631,62 @@ class TestLayer4Programming:
         assert data["blocked"] is False
         assert "edit" in data["command_sent"].lower()
         assert "cue" in data["command_sent"].lower()
+
+    async def test_store_cue_with_timing(self, live_client):
+        """4.10 — Store cue 98 with 2s fade (DESTRUCTIVE)."""
+        await set_intensity("fixture", 101, 60)
+        result = await store_cue_with_timing(
+            cue_id=98, fade_time=2.0, confirm_destructive=True,
+        )
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "store" in data["command_sent"].lower()
+
+    async def test_update_cue_data(self, live_client):
+        """4.11 — Update cue 99 with programmer values (DESTRUCTIVE)."""
+        await set_intensity("fixture", 101, 90)
+        result = await update_cue_data(cue_id=99.0, confirm_destructive=True)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "update" in data["command_sent"].lower()
+
+    async def test_update_cue_data_blocked(self, live_client):
+        """4.12 — Verify update_cue_data blocked without confirmation."""
+        result = await update_cue_data(cue_id=99.0)
+        data = validate_response(result, ["blocked"])
+        assert data["blocked"] is True
+
+    async def test_save_recall_view_store(self, live_client):
+        """4.13 — Store view to slot 10 screen 1 (DESTRUCTIVE)."""
+        result = await save_recall_view(
+            "store", view_id=10, screen_id=1, confirm_destructive=True,
+        )
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "viewbutton" in data["command_sent"].lower()
+
+    async def test_save_recall_view_recall(self, live_client):
+        """4.14 — Recall view slot 10 screen 1."""
+        result = await save_recall_view("recall", view_id=10, screen_id=1)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "viewbutton" in data["command_sent"].lower()
+
+    async def test_export_objects(self, live_client):
+        """4.15 — Export group 99 to file (DESTRUCTIVE)."""
+        result = await export_objects(
+            object_type="group", object_id="99",
+            filename="mcp_live_test", overwrite=True,
+            confirm_destructive=True,
+        )
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "export" in data["command_sent"].lower()
+
+    async def test_set_sequence_property(self, live_client):
+        """4.16 — Set label on sequence 1 (DESTRUCTIVE)."""
+        result = await set_sequence_property(
+            sequence_id=1, property_name="label", value="LiveTest",
+            confirm_destructive=True,
+        )
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)}")
+        assert data["sequence_id"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -530,6 +760,58 @@ class TestLayer5CopyMoveAssign:
         data = validate_response(result, ["blocked"])
         assert data["blocked"] is True
 
+    async def test_import_objects(self, live_client):
+        """5.7 — Import group from exported file (DESTRUCTIVE)."""
+        result = await import_objects(
+            filename="mcp_live_test",
+            destination_type="group", destination_id="98",
+            confirm_destructive=True,
+        )
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "import" in data["command_sent"].lower()
+
+    async def test_set_cue_timing(self, live_client):
+        """5.8 — Set fade 2s on cue 99 (DESTRUCTIVE)."""
+        result = await set_cue_timing(
+            cue_id=99, fade_time=2.0, confirm_destructive=True,
+        )
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)}")
+        assert "commands_sent" in data
+
+    async def test_assign_cue_trigger(self, live_client):
+        """5.9 — Assign follow trigger to cue 99 seq 1 (DESTRUCTIVE)."""
+        result = await assign_cue_trigger(
+            cue_id=99, sequence_id=1, trigger_type="follow",
+            confirm_destructive=True,
+        )
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "trigger" in data["command_sent"].lower()
+
+    async def test_assign_cue_trigger_blocked(self, live_client):
+        """5.10 — Verify assign_cue_trigger blocked without confirmation."""
+        result = await assign_cue_trigger(
+            cue_id=99, sequence_id=1, trigger_type="go",
+        )
+        data = validate_response(result, ["blocked"])
+        assert data["blocked"] is True
+
+    async def test_assign_executor_property(self, live_client):
+        """5.11 — Assign width=2 to executor 201 (DESTRUCTIVE)."""
+        result = await assign_executor_property(
+            property_name="width", executor_id=201, value=2,
+            confirm_destructive=True,
+        )
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_store_timecode_event_blocked(self, live_client):
+        """5.12 — Verify store_timecode_event blocked without confirmation."""
+        result = await store_timecode_event(
+            timecode_id=99, cue_id=1.0, sequence_id=1,
+        )
+        data = validate_response(result, ["blocked"])
+        assert data["blocked"] is True
+
 
 # ---------------------------------------------------------------------------
 # Layer 6 — Playback (SAFE_WRITE, needs sequences/cues)
@@ -595,6 +877,44 @@ class TestLayer6Playback:
         data = validate_response(result, ["command_sent", "raw_response"])
         assert "defgopause" in data["command_sent"].lower()
 
+    async def test_control_executor_on(self, live_client):
+        """6.10 — Turn on executor 201."""
+        result = await control_executor("on", executor_id=201)
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_control_executor_off(self, live_client):
+        """6.11 — Turn off executor 201."""
+        result = await control_executor("off", executor_id=201)
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_run_macro(self, live_client):
+        """6.12 — Run macro 99 (empty, stored in Layer 4)."""
+        result = await run_macro(macro_id=99)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "go macro 99"
+
+    async def test_control_timecode_stop(self, live_client):
+        """6.13 — Stop timecode show 99 (no-op if nonexistent)."""
+        result = await control_timecode("stop", timecode_id=99)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert "off" in data["command_sent"].lower()
+
+    async def test_control_timer_start_stop(self, live_client):
+        """6.14 — Start and stop timer 99."""
+        result_start = await control_timer("start", timer_id=99)
+        data_start = validate_response(result_start, ["command_sent", "raw_response"])
+        assert "go" in data_start["command_sent"].lower()
+
+        result_stop = await control_timer("stop", timer_id=99)
+        data_stop = validate_response(result_stop, ["command_sent", "raw_response"])
+        assert "off" in data_stop["command_sent"].lower()
+
+    async def test_save_show(self, live_client):
+        """6.15 — Save current show."""
+        result = await save_show("save")
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "save"
+
 
 # ---------------------------------------------------------------------------
 # Layer 7 — Cleanup (DESTRUCTIVE)
@@ -615,9 +935,9 @@ class TestLayer7Cleanup:
         assert "selection" in data["command_sent"].lower()
 
     async def test_remove_fixture(self, live_client):
-        """7.2 — Remove fixture 1 with filter."""
+        """7.2 — Remove fixture 101 with filter."""
         result = await remove_content(
-            "fixture", 1, if_filter="PresetType 1", confirm_destructive=True,
+            "fixture", 101, if_filter="PresetType 1", confirm_destructive=True,
         )
         data = validate_response(result, ["command_sent", "raw_response", "blocked"])
         assert data["blocked"] is False
@@ -626,7 +946,7 @@ class TestLayer7Cleanup:
 
     async def test_remove_blocked(self, live_client):
         """7.3 — Verify remove is blocked without confirmation."""
-        result = await remove_content("fixture", 1)
+        result = await remove_content("fixture", 101)
         data = validate_response(result, ["blocked"])
         assert data["blocked"] is True
 
@@ -673,6 +993,12 @@ class TestLayer7Cleanup:
         data = validate_response(result, ["command_sent", "raw_response", "blocked"])
         assert data["blocked"] is False
 
+    async def test_delete_cue_98(self, live_client):
+        """7.8b — Delete cue 98 (created in 4.10)."""
+        result = await delete_object("cue", 98, confirm_destructive=True)
+        data = validate_response(result, ["command_sent", "raw_response", "blocked"])
+        assert data["blocked"] is False
+
     async def test_delete_macro_99(self, live_client):
         """7.9 — Delete macro 99."""
         result = await delete_object("macro", 99, confirm_destructive=True)
@@ -685,8 +1011,156 @@ class TestLayer7Cleanup:
         data = validate_response(result, ["blocked"])
         assert data["blocked"] is True
 
+    async def test_reset_executor_201_width(self, live_client):
+        """7.11 — Reset executor 201 width to 1."""
+        result = await assign_executor_property(
+            property_name="width", executor_id=201, value=1,
+            confirm_destructive=True,
+        )
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_restore_sequence_1_label(self, live_client):
+        """7.12 — Restore sequence 1 label (best-effort)."""
+        result = await set_sequence_property(
+            sequence_id=1, property_name="label", value="Main",
+            confirm_destructive=True,
+        )
+        data = json.loads(result)
+        print(f"  Response: {json.dumps(data, indent=2)}")
+
     async def test_final_clearall(self, live_client):
-        """7.11 — Final clearall to leave console clean."""
+        """7.13 — Final clearall to leave console clean."""
         result = await clear_programmer("all")
         data = validate_response(result, ["command_sent", "raw_response"])
         assert data["command_sent"] == "clearall"
+
+
+# ===================================================================
+# Layer 8 — New Tier 1-3 Tools (tools 57-73)
+# ===================================================================
+
+
+@pytest.mark.live
+class TestLayer8NewTools:
+    """Layer 8: Test new Tier 1-3 tools."""
+
+    # --- Tier 1: High-Impact (SAFE_READ / SAFE_WRITE) ---
+
+    async def test_list_shows(self, live_client):
+        """8.01 — List available show files."""
+        result = await list_shows()
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "listshows"
+        print(f"  Shows: {data['raw_response'][:200]}")
+
+    async def test_list_undo_history(self, live_client):
+        """8.02 — List undo history."""
+        result = await list_undo_history()
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "listoops"
+
+    async def test_get_variable_list_var(self, live_client):
+        """8.03 — List show variables."""
+        result = await get_variable(action="list_var")
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "listvar"
+
+    async def test_get_variable_list_user_var(self, live_client):
+        """8.04 — List user variables."""
+        result = await get_variable(action="list_user_var")
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "listuservar"
+
+    async def test_highlight_on_off(self, live_client):
+        """8.05 — Toggle highlight on then off."""
+        result = await highlight_fixtures(on=True)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "highlight on"
+
+        result = await highlight_fixtures(on=False)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "highlight off"
+
+    async def test_blackout_toggle(self, live_client):
+        """8.06 — Toggle blackout on then off (double toggle = restore)."""
+        result = await blackout_toggle()
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "blackout"
+
+        # Toggle back to restore
+        result = await blackout_toggle()
+        data = validate_response(result, ["command_sent", "raw_response"])
+
+    async def test_release_executor(self, live_client):
+        """8.07 — Release executor 201."""
+        result = await release_executor(executor_id=201)
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "release executor 201"
+
+    # --- Tier 1: DESTRUCTIVE (blocked path only) ---
+
+    async def test_load_show_blocked(self, live_client):
+        """8.08 — Verify LoadShow blocked without confirm."""
+        result = await load_show(name="test_show")
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    async def test_new_show_blocked(self, live_client):
+        """8.09 — Verify NewShow blocked without confirm."""
+        result = await new_show(name="test_show")
+        data = json.loads(result)
+        assert data["blocked"] is True
+        assert data["risk_tier"] == "DESTRUCTIVE"
+
+    # --- Tier 2: Setup & Library (SAFE_READ) ---
+
+    async def test_list_fixture_types(self, live_client):
+        """8.10 — List all fixture types from LiveSetup."""
+        result = await list_fixture_types()
+        data = validate_response(result, ["commands_sent", "raw_response"])
+        assert data["risk_tier"] == "SAFE_READ"
+        print(f"  Fixture types: {data.get('entry_count', 'N/A')}")
+        print(f"  Raw: {data['raw_response'][:300]}")
+
+    async def test_list_layers(self, live_client):
+        """8.11 — List all fixture layers from LiveSetup."""
+        result = await list_layers()
+        data = validate_response(result, ["commands_sent", "raw_response"])
+        assert data["risk_tier"] == "SAFE_READ"
+        print(f"  Layers: {data['raw_response'][:300]}")
+
+    async def test_list_universes(self, live_client):
+        """8.12 — List DMX universes (first 4)."""
+        result = await list_universes(max_universes=4)
+        data = validate_response(result, ["commands_sent", "raw_response"])
+        assert data["risk_tier"] == "SAFE_READ"
+        print(f"  Universe count: {data.get('entry_count', 'N/A')}, showing: {data.get('showing', 'N/A')}")
+
+    async def test_list_library_fixture(self, live_client):
+        """8.13 — Browse fixture library."""
+        result = await list_library(library_type="fixture")
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "listlibrary"
+
+    async def test_list_library_effect(self, live_client):
+        """8.14 — Browse effect library."""
+        result = await list_library(library_type="effect")
+        data = validate_response(result, ["command_sent", "raw_response"])
+        assert data["command_sent"] == "listeffectlibrary"
+
+    # --- Tier 3: Patching (SAFE_READ browse) ---
+
+    async def test_browse_patch_schedule(self, live_client):
+        """8.15 — Browse all fixture types in patch schedule."""
+        result = await browse_patch_schedule()
+        data = validate_response(result, ["commands_sent", "raw_response"])
+        assert data["risk_tier"] == "SAFE_READ"
+        print(f"  Patch entries: {data.get('entry_count', 'N/A')}")
+
+    async def test_browse_patch_schedule_specific(self, live_client):
+        """8.16 — Browse specific fixture type (Dimmer = type 2)."""
+        result = await browse_patch_schedule(fixture_type_id=2)
+        data = validate_response(result, ["commands_sent", "raw_response"])
+        assert data["risk_tier"] == "SAFE_READ"
+        print(f"  Dimmer instances: {data.get('entry_count', 'N/A')}")

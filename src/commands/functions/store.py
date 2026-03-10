@@ -233,6 +233,40 @@ def store_cue_timed(
     return cmd
 
 
+def load_show(name: str) -> str:
+    """
+    Construct a LoadShow command to load an existing show file.
+
+    Args:
+        name: Show file name
+
+    Returns:
+        str: MA command to load a show
+
+    Examples:
+        >>> load_show("my_show")
+        'loadshow "my_show"'
+    """
+    return f'loadshow "{name}"'
+
+
+def new_show(name: str) -> str:
+    """
+    Construct a NewShow command to create a new empty show.
+
+    Args:
+        name: New show file name
+
+    Returns:
+        str: MA command to create a new show
+
+    Examples:
+        >>> new_show("my_new_show")
+        'newshow "my_new_show"'
+    """
+    return f'newshow "{name}"'
+
+
 def store_group(group_id: int) -> str:
     """
     Construct a command to store a group.

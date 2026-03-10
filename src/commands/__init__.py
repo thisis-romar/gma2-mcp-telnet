@@ -61,6 +61,8 @@ from .functions import (
     assign_function,
     assign_property,
     assign_to_layout,
+    # Blackout
+    blackout,
     # Import/Export Function Keywords
     export_object,
     import_object,
@@ -103,6 +105,7 @@ from .functions import (
     executor_at,
     fixture_at,
     flash_executor,
+    get_user_var,
     go,
     go_back,
     go_back_executor,
@@ -115,6 +118,7 @@ from .functions import (
     goto_cue,
     goto_timecode,
     group_at,
+    highlight,
     if_condition,
     # Info Function Keyword
     info,
@@ -127,16 +131,25 @@ from .functions import (
     label_preset,
     list_attribute,
     list_cue,
+    list_effect_library,
     list_group,
+    list_library,
+    list_macro_library,
     list_messages,
     # List Function Keyword
     list_objects,
+    list_oops,
     list_preset,
+    list_shows,
+    list_user_var,
+    list_var,
+    load_show,
     # Macro Placeholder
     macro_with_input_after,
     macro_with_input_before,
     # Move Function Keyword
     move,
+    new_show,
     off_executor,
     on_executor,
     page_next,
@@ -147,6 +160,7 @@ from .functions import (
     paste,
     pause_sequence,
     preset_type_at,
+    release_executor,
     # Remove Function Keyword
     remove,
     remove_effect,
@@ -215,6 +229,8 @@ __all__ = [
     "timecode",
     "timecode_slot",
     "timer",
+    # Blackout
+    "blackout",
     # Import/Export Function Keywords
     "export_object",
     "import_object",
@@ -287,6 +303,12 @@ __all__ = [
     "list_group",
     "list_messages",
     "list_preset",
+    # List* (specialized)
+    "list_shows",
+    "list_oops",
+    "list_library",
+    "list_effect_library",
+    "list_macro_library",
     # Info Function Keyword
     "info",
     "info_cue",
@@ -312,11 +334,14 @@ __all__ = [
     "def_go_back",
     "def_go_forward",
     "def_go_pause",
-    # Executor on/off/flash/solo
+    # Executor on/off/flash/solo/release
     "on_executor",
     "off_executor",
     "flash_executor",
     "solo_executor",
+    "release_executor",
+    # Highlight
+    "highlight",
     # Timecode goto
     "goto_timecode",
     # Helping Keywords (Plus +, Minus -, And, If)
@@ -337,6 +362,12 @@ __all__ = [
     "set_var",
     "add_user_var",
     "add_var",
+    "get_user_var",
+    "list_var",
+    "list_user_var",
+    # Show Management
+    "load_show",
+    "new_show",
     # Navigation Function Keywords
     "changedest",
     # Store / Update

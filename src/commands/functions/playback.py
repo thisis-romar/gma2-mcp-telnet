@@ -574,6 +574,41 @@ def def_go_forward() -> str:
     return "defgoforward"
 
 
+def release_executor(executor_id: int, *, page: int | None = None) -> str:
+    """
+    Release an executor (return to default state).
+
+    Args:
+        executor_id: Executor ID
+        page: Page number for page-qualified addressing (optional)
+
+    Returns:
+        str: MA command to release executor
+
+    Examples:
+        >>> release_executor(3)
+        'release executor 3'
+        >>> release_executor(5, page=2)
+        'release executor 2.5'
+    """
+    ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
+    return f"release executor {ref}"
+
+
+def blackout() -> str:
+    """
+    Toggle master blackout.
+
+    Returns:
+        str: MA command to toggle blackout
+
+    Examples:
+        >>> blackout()
+        'blackout'
+    """
+    return "blackout"
+
+
 def def_go_pause() -> str:
     """
     Construct a DefGoPause command to pause the current fade in the selected executor.

@@ -290,6 +290,81 @@ def list_messages(*, condition: str | None = None, filename: str | None = None) 
 
 
 # ============================================================================
+# LIST* FUNCTION KEYWORDS (specialized list commands)
+# ============================================================================
+
+
+def list_shows() -> str:
+    """
+    Construct a ListShows command to list available show files.
+
+    Returns:
+        str: MA command to list shows
+
+    Examples:
+        >>> list_shows()
+        'listshows'
+    """
+    return "listshows"
+
+
+def list_oops() -> str:
+    """
+    Construct a ListOops command to display undo history.
+
+    Returns:
+        str: MA command to list undo history
+
+    Examples:
+        >>> list_oops()
+        'listoops'
+    """
+    return "listoops"
+
+
+def list_library() -> str:
+    """
+    Construct a ListLibrary command to browse the fixture library.
+
+    Returns:
+        str: MA command to list library
+
+    Examples:
+        >>> list_library()
+        'listlibrary'
+    """
+    return "listlibrary"
+
+
+def list_effect_library() -> str:
+    """
+    Construct a ListEffectLibrary command to browse effect templates.
+
+    Returns:
+        str: MA command to list effect library
+
+    Examples:
+        >>> list_effect_library()
+        'listeffectlibrary'
+    """
+    return "listeffectlibrary"
+
+
+def list_macro_library() -> str:
+    """
+    Construct a ListMacroLibrary command to browse macro templates.
+
+    Returns:
+        str: MA command to list macro library
+
+    Examples:
+        >>> list_macro_library()
+        'listmacrolibrary'
+    """
+    return "listmacrolibrary"
+
+
+# ============================================================================
 # INFO FUNCTION KEYWORD
 # ============================================================================
 

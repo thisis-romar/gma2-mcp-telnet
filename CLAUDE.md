@@ -1,16 +1,16 @@
 ---
 title: Project Rules
 description: Agent conventions, architecture quick-reference, and development rules for ma2-onPC-MCP
-version: 2.0.0
+version: 2.1.0
 created: 2026-03-01T00:00:00Z
-last_updated: 2026-03-09T02:00:00Z
+last_updated: 2026-03-09T12:00:00Z
 ---
 
 # Project Rules
 
 ## Project Identity
 
-MCP server exposing 29 tools so AI assistants can control a grandMA2 lighting console via Telnet.
+MCP server exposing 56 tools so AI assistants can control a grandMA2 lighting console via Telnet.
 All network I/O is isolated in `src/telnet_client.py`. Command builders in `src/commands/` are pure functions returning strings — no side effects. The MCP layer in `src/server.py` wires tool calls to telnet via the navigation and safety layers.
 
 ---
@@ -19,7 +19,7 @@ All network I/O is isolated in `src/telnet_client.py`. Command builders in `src/
 
 | Module | Role |
 |--------|------|
-| `src/server.py` | FastMCP server, 29 tools, safety gate, env config |
+| `src/server.py` | FastMCP server, 56 tools, safety gate, env config |
 | `src/telnet_client.py` | Async Telnet (telnetlib3), auth, send/receive, injection prevention |
 | `src/navigation.py` | cd + list + prompt parsing orchestration |
 | `src/prompt_parser.py` | Parse console prompts and `list` tabular output |

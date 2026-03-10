@@ -489,3 +489,28 @@ def parse_list(tokens_after_list: Sequence[str], spec: VocabSpec) -> ListOp:
 
     object_list = " ".join(obj_parts).strip() or None
     return ListOp(object_list=object_list, options=options, discovery=discovery)
+
+
+# =============================================================================
+# CD Numeric Index Map (live-validated on grandMA2 onPC 3.9.60.65)
+# =============================================================================
+
+CD_NUMERIC_INDEX: dict[int, str] = {
+    1: "Showfile",           2: "TimeConfig",         3: "Settings",
+    4: "DMX_Protocols",      5: "NetConfig",           6: "CITPNetConfig",
+    7: "TrackingSystems",    8: "UserImagePool",       9: "RDM_Data",
+    10: "LiveSetup",         11: "EditSetup",          13: "Macros",
+    14: "FlightRecordings",  15: "Plugins",            16: "Gels",
+    17: "Presets",           18: "Worlds",             19: "Filters",
+    20: "FadePaths",         21: "Programmer",         22: "Groups",
+    23: "Forms",             24: "Effects",            25: "Sequences",
+    26: "Timers",            27: "MasterSections",     30: "ExecutorPages",
+    31: "ChannelPages",      33: "Songs",              34: "Agendas",
+    35: "Timecodes",         36: "RemoteTypes",        37: "DMXSnapshotPool",
+    38: "Layouts",           39: "UserProfiles",       40: "Users",
+    41: "PixelMapperContainer", 42: "NDP_Root",        43: "UserStationCollect",
+    46: "Temp",
+}
+
+# Indexes confirmed INVALID (Error #72: COMMAND NOT EXECUTED) on MA2 3.9.60.65
+CD_INVALID_INDEXES: frozenset[int] = frozenset({12, 28, 29, 32, 44, 45, 47, 48, 49, 50})

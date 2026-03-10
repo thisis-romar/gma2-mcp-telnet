@@ -165,7 +165,7 @@ class GMA2TelnetClient:
                 self._reader.read(1024),
                 timeout=1.0,
             )
-            logger.debug(f"Login response: {response}")
+            logger.debug("Login response: %d bytes received", len(response) if response else 0)
             logger.info("Login completed (response received)")
             return True
         except TimeoutError:

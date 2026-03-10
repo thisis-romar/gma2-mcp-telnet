@@ -23,6 +23,51 @@ Included functions:
 
 
 
+def get_user_var(var_name: str) -> str:
+    """
+    Construct a GetUserVar command to read a user variable value.
+
+    Args:
+        var_name: Variable name (should start with $, e.g., "$mycounter")
+
+    Returns:
+        str: MA command to get user variable
+
+    Examples:
+        >>> get_user_var("$mycounter")
+        'getuservar $mycounter'
+    """
+    return f"getuservar {var_name}"
+
+
+def list_var() -> str:
+    """
+    Construct a ListVar command to list all global show variables.
+
+    Returns:
+        str: MA command to list show variables
+
+    Examples:
+        >>> list_var()
+        'listvar'
+    """
+    return "listvar"
+
+
+def list_user_var() -> str:
+    """
+    Construct a ListUserVar command to list all user profile variables.
+
+    Returns:
+        str: MA command to list user variables
+
+    Examples:
+        >>> list_user_var()
+        'listuservar'
+    """
+    return "listuservar"
+
+
 def set_user_var(
     var_name: str,
     value: int | float | str | None,

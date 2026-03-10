@@ -12,6 +12,7 @@ import functools
 import json
 import logging
 import os
+import re
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -203,10 +204,26 @@ from src.commands import (
 from src.commands import (
     unpark as build_unpark,
 )
+from src.commands import (
+    blackout as build_blackout,
+    delete_fixture as build_delete_fixture,
+    get_user_var as build_get_user_var,
+    highlight as build_highlight,
+    list_effect_library as build_list_effect_library,
+    list_library as build_list_library,
+    list_macro_library as build_list_macro_library,
+    list_oops as build_list_oops,
+    list_shows as build_list_shows,
+    list_user_var as build_list_user_var,
+    list_var as build_list_var,
+    load_show as build_load_show,
+    new_show as build_new_show,
+    release_executor as build_release_executor,
+)
 from src.navigation import get_current_location, list_destination, navigate, scan_indexes, set_property
 from src.telnet_client import GMA2TelnetClient
 from src.tools import set_gma2_client
-from src.vocab import RiskTier, build_v39_spec, classify_token
+from src.vocab import CD_INVALID_INDEXES, CD_NUMERIC_INDEX, RiskTier, build_v39_spec, classify_token
 
 # Load environment variables
 load_dotenv()
@@ -219,11 +236,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Get configuration from environment variables
-GMA_HOST = os.getenv("GMA_HOST", "127.0.0.1")
-GMA_PORT = int(os.getenv("GMA_PORT", "30000"))
-GMA_USER = os.getenv("GMA_USER", "administrator")
-GMA_PASSWORD = os.getenv("GMA_PASSWORD", "admin")
-GMA_SAFETY_LEVEL = os.getenv("GMA_SAFETY_LEVEL", "standard").lower()
+_GMA_HOST = os.getenv("GMA_HOST", "127.0.0.1")
+_GMA_PORT = int(os.getenv("GMA_PORT", "30000"))
+_GMA_USER = os.getenv("GMA_USER", "administrator")
+_GMA_PASSWORD = os.getenv("GMA_PASSWORD", "admin")
+_GMA_SAFETY_LEVEL = os.getenv("GMA_SAFETY_LEVEL", "standard").lower()
 
 # Build vocab spec once for token classification / safety gating
 _vocab_spec = build_v39_spec()
@@ -233,7 +250,7 @@ mcp = FastMCP(
     name="grandMA2-MCP",
     instructions="""
     This is an MCP server for controlling grandMA2 lighting console.
-    You can use the following 28 tools to operate grandMA2:
+    You can use the following 73 tools to operate grandMA2:
 
     --- Navigation & Inspection ---
     1. navigate_console - Navigate the console object tree (cd)
@@ -305,17 +322,17 @@ async def get_client() -> GMA2TelnetClient:
 
     if _client is None or not _connected:
         _client = GMA2TelnetClient(
-            host=GMA_HOST,
-            port=GMA_PORT,
-            user=GMA_USER,
-            password=GMA_PASSWORD,
+            host=_GMA_HOST,
+            port=_GMA_PORT,
+            user=_GMA_USER,
+            password=_GMA_PASSWORD,
         )
         try:
             await _client.connect()
             await _client.login()
             _connected = True
             set_gma2_client(_client)
-            logger.info(f"Connected to grandMA2: {GMA_HOST}:{GMA_PORT}")
+            logger.info(f"Connected to grandMA2: {_GMA_HOST}:{_GMA_PORT}")
         except Exception:
             _connected = False
             raise
@@ -327,20 +344,94 @@ def _handle_errors(func):
     """Decorator that catches exceptions in MCP tools and returns JSON errors."""
 
     @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs) -> str:
         try:
             return await func(*args, **kwargs)
         except ConnectionError as e:
             logger.error("Connection error in %s: %s", func.__name__, e)
-            return json.dumps({"error": f"Connection failed: {e}"}, indent=2)
+            return json.dumps({"error": f"Connection failed: {e}", "blocked": True}, indent=2)
         except RuntimeError as e:
             logger.error("Runtime error in %s: %s", func.__name__, e)
-            return json.dumps({"error": f"Runtime error: {e}"}, indent=2)
+            return json.dumps({"error": f"Runtime error: {e}", "blocked": True}, indent=2)
         except Exception as e:
             logger.error("Unexpected error in %s: %s", func.__name__, e, exc_info=True)
-            return json.dumps({"error": f"Unexpected error: {e}"}, indent=2)
+            return json.dumps({"error": f"Unexpected error: {e}", "blocked": True}, indent=2)
 
     return wrapper
+
+
+# ============================================================
+# Private helpers — object existence probing
+# ============================================================
+
+# Regex to parse sequence ID from "list executor PAGE.ID" response.
+# Matches "Sequence=Seq 278" and "Sequence=Seq 278(2)".
+_SEQ_FOR_EXECUTOR_RE = re.compile(r"Sequence=Seq\s+(\d+)", re.IGNORECASE)
+
+
+async def _validate_object_exists(
+    client: GMA2TelnetClient,
+    object_type: str,
+    object_id: int | str,
+) -> tuple[bool, str]:
+    """
+    Probe whether an object exists using 'list {object_type} {object_id}'.
+
+    MA2 returns "NO OBJECTS FOUND FOR LIST" when the object does not exist.
+    Any other response (including data rows) is treated as existence confirmed.
+
+    Not decorated with @_handle_errors — exceptions propagate to the
+    enclosing tool's decorator.
+
+    Args:
+        client: Connected GMA2TelnetClient (already obtained by the caller).
+        object_type: MA2 keyword, e.g. "fixture", "cue", "group".
+        object_id: Integer ID or compound string, e.g. "99 sequence 278".
+
+    Returns:
+        (exists: bool, raw_response: str)
+    """
+    probe_cmd = f"list {object_type} {object_id}"
+    raw = await client.send_command_with_response(probe_cmd)
+    exists = "NO OBJECTS FOUND" not in raw.upper()
+    logger.debug("_validate_object_exists %r → exists=%s", probe_cmd, exists)
+    return exists, raw
+
+
+async def _get_sequence_for_executor(
+    client: GMA2TelnetClient,
+    executor_id: int,
+    page: int = 1,
+) -> tuple[int | None, str]:
+    """
+    Resolve the sequence linked to an executor via 'list executor PAGE.ID'.
+
+    Parses "Sequence=Seq N" from the response. Returns (None, raw) if the
+    executor has no sequence assigned or is not found.
+
+    Args:
+        client: Connected GMA2TelnetClient (already obtained by the caller).
+        executor_id: Executor number within the page.
+        page: Executor page number (default 1).
+
+    Returns:
+        (sequence_id: int | None, raw_response: str)
+    """
+    probe_cmd = f"list executor {page}.{executor_id}"
+    raw = await client.send_command_with_response(probe_cmd)
+    m = _SEQ_FOR_EXECUTOR_RE.search(raw)
+    if m:
+        seq_id = int(m.group(1))
+        logger.debug(
+            "_get_sequence_for_executor: executor %d.%d → sequence %d",
+            page, executor_id, seq_id,
+        )
+        return seq_id, raw
+    logger.debug(
+        "_get_sequence_for_executor: executor %d.%d — no sequence in response",
+        page, executor_id,
+    )
+    return None, raw
 
 
 # ============================================================
@@ -488,9 +579,15 @@ async def send_raw_command(
     resolved = classify_token(first_token, _vocab_spec)
     risk = resolved.risk
 
-    # Block destructive commands unless explicitly confirmed or admin mode
-    if risk == RiskTier.DESTRUCTIVE and GMA_SAFETY_LEVEL != "admin":
-        if not confirm_destructive:
+    # Log and optionally block destructive commands
+    if risk == RiskTier.DESTRUCTIVE:
+        if _GMA_SAFETY_LEVEL == "admin":
+            # Admin mode: allow but still log for audit trail
+            logger.warning(
+                "ADMIN-MODE destructive command: %r (risk=%s, canonical=%s)",
+                command, risk.value, resolved.canonical,
+            )
+        elif not confirm_destructive:
             logger.warning(
                 "BLOCKED destructive command: %r (risk=%s, canonical=%s)",
                 command, risk.value, resolved.canonical,
@@ -506,13 +603,14 @@ async def send_raw_command(
                 ),
                 "blocked": True,
             }, indent=2)
-        logger.warning(
-            "CONFIRMED destructive command: %r (risk=%s, canonical=%s)",
-            command, risk.value, resolved.canonical,
-        )
+        else:
+            logger.warning(
+                "CONFIRMED destructive command: %r (risk=%s, canonical=%s)",
+                command, risk.value, resolved.canonical,
+            )
 
     # Block all write commands in read-only mode
-    if GMA_SAFETY_LEVEL == "read-only" and risk != RiskTier.SAFE_READ:
+    if _GMA_SAFETY_LEVEL == "read-only" and risk != RiskTier.SAFE_READ:
         logger.warning(
             "BLOCKED non-read command in read-only mode: %r (risk=%s)",
             command, risk.value,
@@ -849,6 +947,7 @@ async def set_intensity(
     else:
         return json.dumps({
             "error": f"Unknown target_type: {target_type}. Use 'fixture', 'group', or 'channel'.",
+            "blocked": True,
         }, indent=2)
 
     client = await get_client()
@@ -1066,6 +1165,7 @@ async def clear_programmer(
     else:
         return json.dumps({
             "error": f"Unknown mode: {mode}. Use 'all', 'selection', 'active', or 'clear'.",
+            "blocked": True,
         }, indent=2)
 
     client = await get_client()
@@ -1142,25 +1242,48 @@ async def park_fixture(
     Parking locks the output so it won't change when cues or programmer
     values change. Useful for testing, worklights, or safety overrides.
 
+    Fixture targets are pre-validated: if the fixture does not exist on the
+    console, the command is not sent and an informative error is returned.
+    DMX targets (e.g. "dmx 101") bypass pre-validation.
+
     Args:
-        target: What to park (e.g. "fixture 1", "dmx 101", "fixture 1 thru 10")
+        target: What to park (e.g. "fixture 20", "dmx 101", "fixture 20 thru 30")
         value: Optional output value to park at (0-255 for DMX, 0-100 for %)
 
     Returns:
-        str: JSON with command_sent and raw_response.
+        str: JSON with command_sent (None if blocked), raw_response, exists.
 
     Examples:
-        - Park fixture 1 at current output: target="fixture 1"
+        - Park fixture 20 at current output: target="fixture 20"
         - Park DMX 101 at 128: target="dmx 101", value=128
-        - Park fixture range: target="fixture 1 thru 10"
+        - Park fixture range: target="fixture 20 thru 30"
     """
     client = await get_client()
+
+    fixture_match = re.match(r"^fixture\s+(\d+)", target.strip(), re.IGNORECASE)
+    if fixture_match:
+        fixture_id = fixture_match.group(1)
+        exists, probe_raw = await _validate_object_exists(client, "fixture", fixture_id)
+        if not exists:
+            return json.dumps({
+                "command_sent": None,
+                "exists": False,
+                "error": f"Fixture {fixture_id} does not exist on the console.",
+                "hint": "Use list_fixtures() to discover valid fixture IDs.",
+                "probe_response": probe_raw,
+                "blocked": True,
+            }, indent=2)
+        exists_flag: bool | None = True
+    else:
+        exists_flag = None  # DMX or other — validation skipped
+
     cmd = build_park(target, at=value)
     raw_response = await client.send_command_with_response(cmd)
 
     return json.dumps({
         "command_sent": cmd,
         "raw_response": raw_response,
+        "exists": exists_flag,
     }, indent=2)
 
 
@@ -1172,26 +1295,45 @@ async def unpark_fixture(
     """
     Unpark a previously parked fixture or DMX address.
 
-    Releases the park lock so the output resumes following cues and
-    programmer values normally.
+    Fixture targets are pre-validated before unparking. DMX targets bypass
+    pre-validation.
 
     Args:
-        target: What to unpark (e.g. "fixture 1", "dmx 101", "fixture 1 thru 10")
+        target: What to unpark (e.g. "fixture 20", "dmx 101", "fixture 20 thru 30")
 
     Returns:
-        str: JSON with command_sent and raw_response.
+        str: JSON with command_sent (None if blocked), raw_response, exists.
 
     Examples:
-        - Unpark fixture 1: target="fixture 1"
+        - Unpark fixture 20: target="fixture 20"
         - Unpark DMX 101: target="dmx 101"
     """
     client = await get_client()
+
+    fixture_match = re.match(r"^fixture\s+(\d+)", target.strip(), re.IGNORECASE)
+    if fixture_match:
+        fixture_id = fixture_match.group(1)
+        exists, probe_raw = await _validate_object_exists(client, "fixture", fixture_id)
+        if not exists:
+            return json.dumps({
+                "command_sent": None,
+                "exists": False,
+                "error": f"Fixture {fixture_id} does not exist on the console.",
+                "hint": "Use list_fixtures() to discover valid fixture IDs.",
+                "probe_response": probe_raw,
+                "blocked": True,
+            }, indent=2)
+        exists_flag: bool | None = True
+    else:
+        exists_flag = None
+
     cmd = build_unpark(target)
     raw_response = await client.send_command_with_response(cmd)
 
     return json.dumps({
         "command_sent": cmd,
         "raw_response": raw_response,
+        "exists": exists_flag,
     }, indent=2)
 
 
@@ -1324,6 +1466,7 @@ async def copy_or_move_object(
     else:
         return json.dumps({
             "error": f"Unknown action: {action}. Use 'copy' or 'move'.",
+            "blocked": True,
         }, indent=2)
 
     client = await get_client()
@@ -1523,11 +1666,55 @@ async def playback_action(
         if cue_id is None:
             return json.dumps({
                 "error": "goto action requires cue_id to be specified.",
+                "blocked": True,
             }, indent=2)
+
+        # Pre-flight: validate cue exists before sending goto
+        client = await get_client()
+        validation_info: dict = {}
+        resolved_sequence = sequence
+
+        if resolved_sequence is None and executor is not None:
+            # Derive sequence from the executor assignment
+            resolved_sequence, exec_raw = await _get_sequence_for_executor(
+                client, executor
+            )
+            validation_info["executor_probe_response"] = exec_raw
+
+        if resolved_sequence is not None:
+            cue_probe_arg = f"{cue_id} sequence {resolved_sequence}"
+            cue_exists, cue_raw = await _validate_object_exists(
+                client, "cue", cue_probe_arg
+            )
+            validation_info["cue_exists"] = cue_exists
+            validation_info["cue_probe_response"] = cue_raw
+            if not cue_exists:
+                return json.dumps({
+                    "command_sent": None,
+                    "error": (
+                        f"Cue {cue_id} does not exist in sequence {resolved_sequence}. "
+                        "MA2 would return Error #72 (COMMAND NOT EXECUTED)."
+                    ),
+                    "hint": "Use list_sequence_cues(sequence_id) to see available cues.",
+                    **validation_info,
+                    "blocked": True,
+                }, indent=2)
+        else:
+            validation_info["warning"] = (
+                "Could not resolve sequence context — command sent without cue "
+                "pre-flight check. Provide sequence or executor for validation."
+            )
+
         cmd = build_goto(
             cue_id, executor=executor, sequence=sequence,
             cue_mode=cue_mode,
         )
+        raw_response = await client.send_command_with_response(cmd)
+        return json.dumps({
+            "command_sent": cmd,
+            "raw_response": raw_response,
+            **validation_info,
+        }, indent=2)
     elif action == "fast_forward":
         cmd = build_go_fast_forward(executor=executor, sequence=sequence)
     elif action == "fast_back":
@@ -1542,6 +1729,7 @@ async def playback_action(
                 f"Unknown action: {action}. Use 'go', 'go_back', 'goto', "
                 f"'fast_forward', 'fast_back', 'def_go', or 'def_pause'."
             ),
+            "blocked": True,
         }, indent=2)
 
     client = await get_client()
@@ -1597,11 +1785,13 @@ async def manage_variable(
         else:
             return json.dumps({
                 "error": f"Unknown scope: {scope}. Use 'global' or 'user'.",
+                "blocked": True,
             }, indent=2)
     elif action == "add":
         if value is None:
             return json.dumps({
                 "error": "add action requires a value.",
+                "blocked": True,
             }, indent=2)
         if scope == "global":
             cmd = build_add_var(var_name, value)
@@ -1610,10 +1800,12 @@ async def manage_variable(
         else:
             return json.dumps({
                 "error": f"Unknown scope: {scope}. Use 'global' or 'user'.",
+                "blocked": True,
             }, indent=2)
     else:
         return json.dumps({
             "error": f"Unknown action: {action}. Use 'set' or 'add'.",
+            "blocked": True,
         }, indent=2)
 
     client = await get_client()
@@ -1694,6 +1886,7 @@ async def label_or_appearance(
         if name is None:
             return json.dumps({
                 "error": "label action requires 'name' to be specified.",
+                "blocked": True,
             }, indent=2)
         if preset_type is not None:
             cmd = build_label_preset(preset_type, object_id, name)
@@ -1710,6 +1903,7 @@ async def label_or_appearance(
     else:
         return json.dumps({
             "error": f"Unknown action: {action}. Use 'label' or 'appearance'.",
+            "blocked": True,
         }, indent=2)
 
     client = await get_client()
@@ -1793,6 +1987,7 @@ async def assign_object(
         if source_type is None or source_id is None:
             return json.dumps({
                 "error": "assign mode requires source_type and source_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_assign(
             source_type, source_id,
@@ -1803,18 +1998,21 @@ async def assign_object(
         if function is None or target_type is None or target_id is None:
             return json.dumps({
                 "error": "function mode requires function, target_type, and target_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_assign_function(function, target_type, target_id)
     elif mode == "fade":
         if fade_time is None or cue_id is None:
             return json.dumps({
                 "error": "fade mode requires fade_time and cue_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_assign_fade(fade_time, cue_id, sequence_id=sequence_id)
     elif mode == "layout":
         if source_type is None or source_id is None or layout_id is None:
             return json.dumps({
                 "error": "layout mode requires source_type, source_id, and layout_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_assign_to_layout(
             source_type, source_id, layout_id, x=x, y=y,
@@ -1823,12 +2021,14 @@ async def assign_object(
         if target_type is None or target_id is None:
             return json.dumps({
                 "error": "empty mode requires target_type and target_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_assign_function("empty", target_type, target_id)
     elif mode == "temp_fader":
         if target_type is None or target_id is None:
             return json.dumps({
                 "error": "temp_fader mode requires target_type and target_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_assign_function("tempfader", target_type, target_id)
     else:
@@ -1837,6 +2037,7 @@ async def assign_object(
                 f"Unknown mode: {mode}. Use 'assign', 'function', 'fade', "
                 f"'layout', 'empty', or 'temp_fader'."
             ),
+            "blocked": True,
         }, indent=2)
 
     client = await get_client()
@@ -1900,6 +2101,7 @@ async def edit_object(
         if object_type is None or object_id is None:
             return json.dumps({
                 "error": "cut requires object_type and object_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_cut(object_type, object_id, end=end)
     elif action == "paste":
@@ -1907,6 +2109,7 @@ async def edit_object(
     else:
         return json.dumps({
             "error": f"Unknown action: {action}. Use 'edit', 'cut', or 'paste'.",
+            "blocked": True,
         }, indent=2)
 
     client = await get_client()
@@ -1975,18 +2178,21 @@ async def remove_content(
         if object_id is None:
             return json.dumps({
                 "error": "fixture removal requires object_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_remove_fixture(object_id, end=end, if_filter=if_filter)
     elif otype == "effect":
         if object_id is None:
             return json.dumps({
                 "error": "effect removal requires object_id.",
+                "blocked": True,
             }, indent=2)
         cmd = build_remove_effect(object_id, end=end)
     elif otype == "presettype":
         if object_id is None:
             return json.dumps({
                 "error": "presettype removal requires object_id (the preset type name or number).",
+                "blocked": True,
             }, indent=2)
         cmd = build_remove_preset_type(object_id, if_filter=if_filter)
     else:
@@ -2105,7 +2311,8 @@ async def search_codebase(
     db = Path(__file__).parent.parent / "rag" / "store" / "rag.db"
     if not db.exists():
         return json.dumps({
-            "error": "RAG index not found. Build it first: uv run python scripts/rag_ingest.py"
+            "error": "RAG index not found. Build it first: uv run python scripts/rag_ingest.py",
+            "blocked": True,
         }, indent=2)
 
     provider = None
@@ -2155,9 +2362,9 @@ async def set_executor_level(
         str: JSON result with command sent
     """
     if not (0.0 <= level <= 100.0):
-        return json.dumps({"error": "level must be between 0.0 and 100.0"}, indent=2)
+        return json.dumps({"error": "level must be between 0.0 and 100.0", "blocked": True}, indent=2)
     if executor_id < 1:
-        return json.dumps({"error": "executor_id must be >= 1"}, indent=2)
+        return json.dumps({"error": "executor_id must be >= 1", "blocked": True}, indent=2)
 
     client = await get_client()
     cmd = build_executor_at(executor_id, level, page=page)
@@ -2188,10 +2395,10 @@ async def navigate_page(
         str: JSON result with command sent
     """
     if action not in ("goto", "next", "previous"):
-        return json.dumps({"error": "action must be 'goto', 'next', or 'previous'"}, indent=2)
+        return json.dumps({"error": "action must be 'goto', 'next', or 'previous'", "blocked": True}, indent=2)
     if action == "goto":
         if page_number is None:
-            return json.dumps({"error": "page_number is required for action='goto'"}, indent=2)
+            return json.dumps({"error": "page_number is required for action='goto'", "blocked": True}, indent=2)
         cmd = f"page {page_number}"
     elif action == "next":
         cmd = build_page_next(steps)
@@ -2226,9 +2433,9 @@ async def modify_selection(
         str: JSON result with command sent
     """
     if action not in ("add", "remove", "replace", "clear"):
-        return json.dumps({"error": "action must be 'add', 'remove', 'replace', or 'clear'"}, indent=2)
+        return json.dumps({"error": "action must be 'add', 'remove', 'replace', or 'clear'", "blocked": True}, indent=2)
     if action != "clear" and not fixture_ids:
-        return json.dumps({"error": "fixture_ids is required for action != 'clear'"}, indent=2)
+        return json.dumps({"error": "fixture_ids is required for action != 'clear'", "blocked": True}, indent=2)
 
     client = await get_client()
     if action == "clear":
@@ -2281,7 +2488,7 @@ async def adjust_value_relative(
         str: JSON result with commands sent
     """
     if delta == 0:
-        return json.dumps({"error": "delta cannot be zero"}, indent=2)
+        return json.dumps({"error": "delta cannot be zero", "blocked": True}, indent=2)
 
     client = await get_client()
     commands_sent = []
@@ -2328,9 +2535,9 @@ async def control_timecode(
         str: JSON result with command sent
     """
     if action not in ("start", "stop", "goto"):
-        return json.dumps({"error": "action must be 'start', 'stop', or 'goto'"}, indent=2)
+        return json.dumps({"error": "action must be 'start', 'stop', or 'goto'", "blocked": True}, indent=2)
     if action == "goto" and timecode_position is None:
-        return json.dumps({"error": "timecode_position is required for action='goto'"}, indent=2)
+        return json.dumps({"error": "timecode_position is required for action='goto'", "blocked": True}, indent=2)
 
     client = await get_client()
     if action == "start":
@@ -2365,9 +2572,9 @@ async def control_timer(
         str: JSON result with command sent
     """
     if action not in ("start", "stop", "reset"):
-        return json.dumps({"error": "action must be 'start', 'stop', or 'reset'"}, indent=2)
+        return json.dumps({"error": "action must be 'start', 'stop', or 'reset'", "blocked": True}, indent=2)
     if timer_id < 1:
-        return json.dumps({"error": "timer_id must be >= 1"}, indent=2)
+        return json.dumps({"error": "timer_id must be >= 1", "blocked": True}, indent=2)
 
     client = await get_client()
     if action == "start":
@@ -2398,7 +2605,7 @@ async def undo_last_action(count: int = 1) -> str:
         str: JSON result with all raw responses
     """
     if not (1 <= count <= 20):
-        return json.dumps({"error": "count must be between 1 and 20"}, indent=2)
+        return json.dumps({"error": "count must be between 1 and 20", "blocked": True}, indent=2)
 
     client = await get_client()
     responses = []
@@ -2430,7 +2637,7 @@ async def toggle_console_mode(mode: str) -> str:
     """
     valid = ("blind", "highlight", "solo", "freeze")
     if mode not in valid:
-        return json.dumps({"error": f"mode must be one of {valid}"}, indent=2)
+        return json.dumps({"error": f"mode must be one of {valid}", "blocked": True}, indent=2)
 
     client = await get_client()
     response = await client.send_command_with_response(mode)
@@ -2513,7 +2720,7 @@ async def set_cue_timing(
             "risk_tier": "DESTRUCTIVE",
         }, indent=2)
     if fade_time is None and delay_time is None:
-        return json.dumps({"error": "At least one of fade_time or delay_time must be provided"}, indent=2)
+        return json.dumps({"error": "At least one of fade_time or delay_time must be provided", "blocked": True}, indent=2)
 
     client = await get_client()
     commands_sent = []
@@ -2555,7 +2762,7 @@ async def select_fixtures_by_group(
         str: JSON result with command sent
     """
     if group_id < 1:
-        return json.dumps({"error": "group_id must be >= 1"}, indent=2)
+        return json.dumps({"error": "group_id must be >= 1", "blocked": True}, indent=2)
 
     client = await get_client()
     cmd = f"+ group {group_id}" if append else f"group {group_id}"
@@ -2592,9 +2799,9 @@ async def control_executor(
     """
     valid_actions = ("on", "off", "flash", "solo", "set_speed")
     if action not in valid_actions:
-        return json.dumps({"error": f"action must be one of {valid_actions}"}, indent=2)
+        return json.dumps({"error": f"action must be one of {valid_actions}", "blocked": True}, indent=2)
     if executor_id < 1:
-        return json.dumps({"error": "executor_id must be >= 1"}, indent=2)
+        return json.dumps({"error": "executor_id must be >= 1", "blocked": True}, indent=2)
 
     if action == "set_speed":
         if not confirm_destructive:
@@ -2604,7 +2811,7 @@ async def control_executor(
                 "risk_tier": "DESTRUCTIVE",
             }, indent=2)
         if speed_value is None:
-            return json.dumps({"error": "speed_value is required for action='set_speed'"}, indent=2)
+            return json.dumps({"error": "speed_value is required for action='set_speed'", "blocked": True}, indent=2)
         ref = f"{page}.{executor_id}" if page is not None else str(executor_id)
         cmd = f"assign speed {speed_value} at executor {ref}"
         risk_tier = "DESTRUCTIVE"
@@ -2733,16 +2940,21 @@ async def set_sequence_property(
             "risk_tier": "DESTRUCTIVE",
         }, indent=2)
 
+    client = await get_client()
     result = await set_property(
+        client,
         path=f"sequence {sequence_id}",
-        prop=property_name,
+        property_name=property_name,
         value=value,
     )
     return json.dumps({
         "sequence_id": sequence_id,
         "property": property_name,
         "value": value,
-        "result": result,
+        "commands_sent": result.commands_sent,
+        "success": result.success,
+        "verified_value": result.verified_value,
+        "error": result.error,
         "risk_tier": "DESTRUCTIVE",
     }, indent=2)
 
@@ -2769,9 +2981,9 @@ async def save_show(
         str: JSON result with command sent
     """
     if action not in ("save", "saveas"):
-        return json.dumps({"error": "action must be 'save' or 'saveas'"}, indent=2)
+        return json.dumps({"error": "action must be 'save' or 'saveas'", "blocked": True}, indent=2)
     if action == "saveas" and not show_name:
-        return json.dumps({"error": "show_name is required for action='saveas'"}, indent=2)
+        return json.dumps({"error": "show_name is required for action='saveas'", "blocked": True}, indent=2)
 
     client = await get_client()
     cmd = "save" if action == "save" else f'saveas "{show_name}"'
@@ -2880,7 +3092,7 @@ async def remove_from_programmer(
     """
     if object_type not in ("channel", "fixture", "group"):
         return json.dumps(
-            {"error": "object_type must be 'channel', 'fixture', or 'group'"},
+            {"error": "object_type must be 'channel', 'fixture', or 'group'", "blocked": True},
             indent=2,
         )
     if end_id is not None and object_type != "group":
@@ -2928,10 +3140,10 @@ async def assign_cue_trigger(
 
     valid = ("go", "follow", "time", "bpm")
     if trigger_type not in valid:
-        return json.dumps({"error": f"trigger_type must be one of {valid}"}, indent=2)
+        return json.dumps({"error": f"trigger_type must be one of {valid}", "blocked": True}, indent=2)
     if trigger_type in ("bpm", "time") and trigger_value is None:
         return json.dumps(
-            {"error": f"trigger_value is required for trigger_type='{trigger_type}'"},
+            {"error": f"trigger_value is required for trigger_type='{trigger_type}'", "blocked": True},
             indent=2,
         )
 
@@ -2982,26 +3194,26 @@ async def assign_executor_property(
 
     valid = ("width", "priority", "rate")
     if property_name not in valid:
-        return json.dumps({"error": f"property_name must be one of {valid}"}, indent=2)
+        return json.dumps({"error": f"property_name must be one of {valid}", "blocked": True}, indent=2)
 
     if property_name == "width":
         if executor_id is None or value is None:
             return json.dumps(
-                {"error": "executor_id and value are required for property_name='width'"},
+                {"error": "executor_id and value are required for property_name='width'", "blocked": True},
                 indent=2,
             )
         cmd = f"assign executor {executor_id} /width={value}"
     elif property_name == "priority":
         if sequence_id is None or value is None:
             return json.dumps(
-                {"error": "sequence_id and value are required for property_name='priority'"},
+                {"error": "sequence_id and value are required for property_name='priority'", "blocked": True},
                 indent=2,
             )
         cmd = f"assign priority {value} sequence {sequence_id}"
     else:  # rate
         if executor_id is None:
             return json.dumps(
-                {"error": "executor_id is required for property_name='rate'"},
+                {"error": "executor_id is required for property_name='rate'", "blocked": True},
                 indent=2,
             )
         cmd = f"assign rate executor {executor_id}"
@@ -3035,17 +3247,17 @@ async def if_filter(
     """
     if filter_type not in ("active", "fixture", "attribute"):
         return json.dumps(
-            {"error": "filter_type must be 'active', 'fixture', or 'attribute'"},
+            {"error": "filter_type must be 'active', 'fixture', or 'attribute'", "blocked": True},
             indent=2,
         )
     if filter_type in ("fixture", "attribute") and fixture_id is None:
         return json.dumps(
-            {"error": "fixture_id is required for filter_type != 'active'"},
+            {"error": "fixture_id is required for filter_type != 'active'", "blocked": True},
             indent=2,
         )
     if filter_type == "attribute" and attribute_name is None:
         return json.dumps(
-            {"error": "attribute_name is required for filter_type='attribute'"},
+            {"error": "attribute_name is required for filter_type='attribute'", "blocked": True},
             indent=2,
         )
 
@@ -3089,13 +3301,13 @@ async def save_recall_view(
     """
     if action not in ("store", "recall", "label"):
         return json.dumps(
-            {"error": "action must be 'store', 'recall', or 'label'"},
+            {"error": "action must be 'store', 'recall', or 'label'", "blocked": True},
             indent=2,
         )
     if not (1 <= view_id <= 10):
-        return json.dumps({"error": "view_id must be between 1 and 10"}, indent=2)
+        return json.dumps({"error": "view_id must be between 1 and 10", "blocked": True}, indent=2)
     if not (1 <= screen_id <= 4):
-        return json.dumps({"error": "screen_id must be between 1 and 4"}, indent=2)
+        return json.dumps({"error": "screen_id must be between 1 and 4", "blocked": True}, indent=2)
     if action == "store" and not confirm_destructive:
         return json.dumps({
             "blocked": True,
@@ -3104,7 +3316,7 @@ async def save_recall_view(
         }, indent=2)
     if action == "label" and not view_name:
         return json.dumps(
-            {"error": "view_name is required for action='label'"},
+            {"error": "view_name is required for action='label'", "blocked": True},
             indent=2,
         )
 
@@ -3209,11 +3421,12 @@ async def export_objects(
                 f"Invalid object_type '{object_type}'. "
                 f"Valid types: {sorted(_EXPORT_TYPES)}"
             ),
+            "blocked": True,
         }, indent=2)
 
     if style is not None and style.lower() not in ("csv", "html"):
         return json.dumps(
-            {"error": "style must be 'csv' or 'html' (omit for default xml)"},
+            {"error": "style must be 'csv' or 'html' (omit for default xml)", "blocked": True},
             indent=2,
         )
 
@@ -3289,6 +3502,7 @@ async def import_objects(
                 f"Invalid destination_type '{destination_type}'. "
                 f"Valid types: {sorted(_IMPORT_TYPES)}"
             ),
+            "blocked": True,
         }, indent=2)
 
     cmd = build_import_object(
@@ -3310,6 +3524,827 @@ async def import_objects(
 
 
 # ============================================================
+# Tools 55–56 — Fixture & Sequence/Cue Discovery (SAFE_READ)
+# ============================================================
+
+
+@mcp.tool()
+@_handle_errors
+async def list_fixtures(
+    fixture_id: int | None = None,
+) -> str:
+    """
+    List fixtures defined on the console, or check a specific fixture exists.
+
+    This is the correct way to discover fixture IDs before using park_fixture,
+    unpark_fixture, set_intensity, or set_attribute. Note: 'cd Fixture' is NOT
+    a valid MA2 navigation destination — this tool uses 'list fixture' instead.
+
+    Args:
+        fixture_id: Optional fixture ID to inspect. If None, lists all fixtures.
+
+    Returns:
+        str: JSON with command_sent, raw_response, exists (bool), fixture_id.
+             exists is always True when fixture_id is None (listing all).
+
+    Examples:
+        - List all fixtures: list_fixtures()
+        - Check fixture 20: list_fixtures(fixture_id=20)
+        - Check fixture 1 (likely missing): list_fixtures(fixture_id=1)
+    """
+    client = await get_client()
+
+    if fixture_id is not None:
+        cmd = f"list fixture {fixture_id}"
+        raw = await client.send_command_with_response(cmd)
+        exists = "NO OBJECTS FOUND" not in raw.upper()
+    else:
+        cmd = "list fixture"
+        raw = await client.send_command_with_response(cmd)
+        exists = True
+
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "exists": exists,
+        "fixture_id": fixture_id,
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def list_sequence_cues(
+    sequence_id: int | None = None,
+    executor_id: int | None = None,
+    executor_page: int = 1,
+    cue_id: int | float | None = None,
+) -> str:
+    """
+    List cues in a sequence, or check whether a specific cue exists.
+
+    Supports two ways to identify the sequence:
+      - sequence_id: Direct sequence number (e.g. 278)
+      - executor_id: Executor number — sequence is resolved via
+        'list executor PAGE.ID' before listing cues
+
+    If both are supplied, sequence_id takes precedence.
+
+    Validated MA2 probes used:
+      'list cue sequence N'     → all cues in sequence N
+      'list cue M sequence N'   → specific cue M in sequence N
+      'list executor P.E'       → resolve sequence from executor
+
+    Args:
+        sequence_id: Sequence number to inspect.
+        executor_id: Executor number — resolved to its linked sequence.
+        executor_page: Executor page for resolution (default 1).
+        cue_id: Optional specific cue to check for existence.
+
+    Returns:
+        str: JSON with command_sent, raw_response, exists, resolved_sequence_id,
+             and executor_probe_response (when executor_id was used).
+
+    Examples:
+        - All cues in seq 278: list_sequence_cues(sequence_id=278)
+        - Cue 5 in seq 278: list_sequence_cues(sequence_id=278, cue_id=5)
+        - Cues for executor 1: list_sequence_cues(executor_id=1)
+        - Check cue 99 on executor 1: list_sequence_cues(executor_id=1, cue_id=99)
+    """
+    client = await get_client()
+    executor_probe_response: str | None = None
+
+    resolved_sequence = sequence_id
+    if resolved_sequence is None and executor_id is not None:
+        resolved_sequence, executor_probe_response = await _get_sequence_for_executor(
+            client, executor_id, page=executor_page
+        )
+        if resolved_sequence is None:
+            return json.dumps({
+                "command_sent": f"list executor {executor_page}.{executor_id}",
+                "raw_response": executor_probe_response,
+                "error": (
+                    f"Could not resolve a sequence for executor "
+                    f"{executor_page}.{executor_id}. "
+                    "The executor may not have a sequence assigned."
+                ),
+                "exists": False,
+                "resolved_sequence_id": None,
+                "risk_tier": "SAFE_READ",
+                "blocked": True,
+            }, indent=2)
+
+    if resolved_sequence is None:
+        return json.dumps({
+            "error": "Must supply either sequence_id or executor_id.",
+            "command_sent": None,
+            "risk_tier": "SAFE_READ",
+            "blocked": True,
+        }, indent=2)
+
+    if cue_id is not None:
+        cmd = f"list cue {cue_id} sequence {resolved_sequence}"
+    else:
+        cmd = f"list cue sequence {resolved_sequence}"
+
+    raw = await client.send_command_with_response(cmd)
+    exists = "NO OBJECTS FOUND" not in raw.upper() if cue_id is not None else True
+
+    result: dict = {
+        "command_sent": cmd,
+        "raw_response": raw,
+        "exists": exists,
+        "resolved_sequence_id": resolved_sequence,
+        "risk_tier": "SAFE_READ",
+    }
+    if executor_probe_response is not None:
+        result["executor_probe_response"] = executor_probe_response
+
+    return json.dumps(result, indent=2)
+
+
+# ============================================================
+# Tools 57–64: Tier 1 — High-Impact Tools
+# ============================================================
+
+
+@mcp.tool()
+@_handle_errors
+async def highlight_fixtures(on: bool = True) -> str:
+    """
+    Toggle highlight mode for the currently selected fixtures.
+
+    Highlight mode temporarily sets selected fixtures to full intensity to help
+    identify them on stage. Easily reversible (toggle off).
+
+    Args:
+        on: True to enable, False to disable highlight mode.
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    cmd = build_highlight(on)
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def release_executor(
+    executor_id: int,
+    page: int | None = None,
+) -> str:
+    """
+    Release an executor, returning it to its default state.
+
+    Args:
+        executor_id: Executor ID (1-999).
+        page: Page number for page-qualified addressing (optional).
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    cmd = build_release_executor(executor_id, page=page)
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def blackout_toggle() -> str:
+    """
+    Toggle master blackout (kills all lighting output).
+
+    Blackout is a toggle — call once to enable, again to disable.
+    SAFE_WRITE because it is easily reversible.
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    cmd = build_blackout()
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def list_shows() -> str:
+    """
+    List available show files on the console.
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    cmd = build_list_shows()
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def load_show(
+    name: str,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Load an existing show file (DESTRUCTIVE — replaces current show).
+
+    Args:
+        name: Show file name to load.
+        confirm_destructive: Must be True to proceed.
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "LoadShow replaces the current show. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    cmd = build_load_show(name)
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "DESTRUCTIVE",
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def new_show(
+    name: str,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Create a new empty show (DESTRUCTIVE — replaces current show).
+
+    Args:
+        name: New show file name.
+        confirm_destructive: Must be True to proceed.
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "NewShow replaces the current show. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    cmd = build_new_show(name)
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "DESTRUCTIVE",
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def get_variable(
+    action: str,
+    var_name: str | None = None,
+) -> str:
+    """
+    Read variables from the console.
+
+    Args:
+        action: "get_user" (read a user variable), "list_var" (list show variables),
+                or "list_user_var" (list user variables).
+        var_name: Variable name (required for get_user, e.g. "$mycounter").
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    valid_actions = ("get_user", "list_var", "list_user_var")
+    if action not in valid_actions:
+        return json.dumps({
+            "error": f"action must be one of {valid_actions}",
+            "blocked": True,
+        }, indent=2)
+
+    if action == "get_user":
+        if not var_name:
+            return json.dumps({
+                "error": "var_name is required for get_user action",
+                "blocked": True,
+            }, indent=2)
+        cmd = build_get_user_var(var_name)
+    elif action == "list_var":
+        cmd = build_list_var()
+    else:
+        cmd = build_list_user_var()
+
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def list_undo_history() -> str:
+    """
+    Display the undo (Oops) history.
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    cmd = build_list_oops()
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+# ============================================================
+# Tools 65–69: Tier 2 — Setup & Library Tools
+# ============================================================
+
+
+@mcp.tool()
+@_handle_errors
+async def list_fixture_types() -> str:
+    """
+    List all fixture types in the show (from LiveSetup/FixtureTypes).
+
+    Navigates to cd 10 (LiveSetup) -> cd 3 (FixtureTypes) -> list -> cd /
+
+    Returns:
+        str: JSON with raw_response, entries (fixture type names, manufacturers,
+             DMX footprint), risk_tier.
+    """
+    client = await get_client()
+    commands_sent = []
+
+    # Navigate to root
+    nav = await navigate(client, "/")
+    commands_sent.append(nav.command_sent)
+
+    # Navigate to LiveSetup
+    nav = await navigate(client, "10")
+    commands_sent.append(nav.command_sent)
+
+    # Navigate to FixtureTypes
+    nav = await navigate(client, "3")
+    commands_sent.append(nav.command_sent)
+
+    # List
+    lst = await list_destination(client)
+    commands_sent.append(lst.command_sent)
+
+    # Return to root
+    nav = await navigate(client, "/")
+    commands_sent.append(nav.command_sent)
+
+    entries = [
+        {"object_type": e.object_type, "object_id": e.object_id, "name": e.name}
+        for e in lst.parsed_list.entries
+    ]
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_response": lst.raw_response,
+        "entries": entries,
+        "entry_count": len(entries),
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def list_layers() -> str:
+    """
+    List all fixture layers in the show (from LiveSetup/Layers).
+
+    Navigates to cd 10 (LiveSetup) -> cd 4 (Layers) -> list -> cd /
+
+    Returns:
+        str: JSON with raw_response, entries (layer names, fixture ranges),
+             risk_tier.
+    """
+    client = await get_client()
+    commands_sent = []
+
+    nav = await navigate(client, "/")
+    commands_sent.append(nav.command_sent)
+
+    nav = await navigate(client, "10")
+    commands_sent.append(nav.command_sent)
+
+    nav = await navigate(client, "4")
+    commands_sent.append(nav.command_sent)
+
+    lst = await list_destination(client)
+    commands_sent.append(lst.command_sent)
+
+    nav = await navigate(client, "/")
+    commands_sent.append(nav.command_sent)
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_response": lst.raw_response,
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def list_universes(
+    max_universes: int = 16,
+) -> str:
+    """
+    List DMX universes and their configuration (from LiveSetup/Universes).
+
+    Navigates to cd 10 (LiveSetup) -> cd 5 (Universes) -> list -> cd /
+
+    Args:
+        max_universes: Limit output to first N universes (default 16, max 256).
+
+    Returns:
+        str: JSON with raw_response, risk_tier.
+    """
+    client = await get_client()
+    commands_sent = []
+
+    nav = await navigate(client, "/")
+    commands_sent.append(nav.command_sent)
+
+    nav = await navigate(client, "10")
+    commands_sent.append(nav.command_sent)
+
+    nav = await navigate(client, "5")
+    commands_sent.append(nav.command_sent)
+
+    lst = await list_destination(client)
+    commands_sent.append(lst.command_sent)
+
+    nav = await navigate(client, "/")
+    commands_sent.append(nav.command_sent)
+
+    # Truncate raw response if too many universes
+    entries = [
+        {"object_type": e.object_type, "object_id": e.object_id, "name": e.name}
+        for e in lst.parsed_list.entries[:max_universes]
+    ]
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_response": lst.raw_response[:2000] if len(lst.raw_response) > 2000 else lst.raw_response,
+        "entries": entries,
+        "entry_count": len(lst.parsed_list.entries),
+        "showing": min(max_universes, len(lst.parsed_list.entries)),
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def list_library(
+    library_type: str = "fixture",
+) -> str:
+    """
+    Browse the console's built-in libraries.
+
+    Args:
+        library_type: "fixture" (ListLibrary), "effect" (ListEffectLibrary),
+                      or "macro" (ListMacroLibrary).
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    valid_types = ("fixture", "effect", "macro")
+    if library_type not in valid_types:
+        return json.dumps({
+            "error": f"library_type must be one of {valid_types}",
+            "blocked": True,
+        }, indent=2)
+
+    if library_type == "fixture":
+        cmd = build_list_library()
+    elif library_type == "effect":
+        cmd = build_list_effect_library()
+    else:
+        cmd = build_list_macro_library()
+
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def manage_matricks(
+    property_name: str,
+    value: str,
+) -> str:
+    """
+    Configure MAtricks selection pattern properties (fan, symmetry, etc.).
+
+    Uses the set_property navigation pattern on the MAtricks object.
+
+    Args:
+        property_name: Property to set (e.g. "Wings", "Groups", "Interleave").
+        value: New value for the property.
+
+    Returns:
+        str: JSON with commands_sent, success, verified_value, risk_tier.
+    """
+    client = await get_client()
+
+    # Navigate to root, then cd MAtricks
+    nav = await navigate(client, "/")
+    nav = await navigate(client, "MAtricks")
+
+    # Use assign property pattern
+    from src.commands import assign_property as _build_assign_property
+    assign_cmd = _build_assign_property("1", property_name, value)
+    raw = await client.send_command_with_response(assign_cmd)
+
+    # Return to root
+    await navigate(client, "/")
+
+    return json.dumps({
+        "command_sent": assign_cmd,
+        "raw_response": raw,
+        "risk_tier": "SAFE_WRITE",
+    }, indent=2)
+
+
+# ============================================================
+# Tools 70–73: Tier 3 — Fixture Patching Workflow
+# ============================================================
+
+
+@mcp.tool()
+@_handle_errors
+async def browse_patch_schedule(
+    fixture_type_id: int | None = None,
+) -> str:
+    """
+    Browse the fixture patch schedule from LiveSetup.
+
+    If fixture_type_id is provided, drills into that specific fixture type
+    to show its instances (fixtures, DMX addresses, channels).
+
+    Args:
+        fixture_type_id: Fixture type index to drill into (optional).
+                         Omit to see all fixture types.
+
+    Returns:
+        str: JSON with raw_response, entries, risk_tier.
+    """
+    client = await get_client()
+    commands_sent = []
+
+    nav = await navigate(client, "/")
+    commands_sent.append(nav.command_sent)
+
+    nav = await navigate(client, "10")
+    commands_sent.append(nav.command_sent)
+
+    nav = await navigate(client, "3")
+    commands_sent.append(nav.command_sent)
+
+    if fixture_type_id is not None:
+        nav = await navigate(client, str(fixture_type_id))
+        commands_sent.append(nav.command_sent)
+
+    lst = await list_destination(client)
+    commands_sent.append(lst.command_sent)
+
+    nav = await navigate(client, "/")
+    commands_sent.append(nav.command_sent)
+
+    entries = [
+        {"object_type": e.object_type, "object_id": e.object_id, "name": e.name}
+        for e in lst.parsed_list.entries
+    ]
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_response": lst.raw_response,
+        "entries": entries,
+        "entry_count": len(entries),
+        "risk_tier": "SAFE_READ",
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def patch_fixture(
+    fixture_id: int,
+    dmx_universe: int,
+    dmx_address: int,
+    fixture_type_id: int | None = None,
+    channel_id: int | None = None,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Patch a fixture to a DMX address (DESTRUCTIVE — modifies the patch).
+
+    Assigns a DMX address to a fixture. Optionally assigns a fixture type first.
+
+    MA2 syntax:
+      assign dmx [universe].[address] at fixture [fixture_id]
+      assign fixture_type [type_id] at fixture [fixture_id]  (if fixture_type_id given)
+
+    Args:
+        fixture_id: Fixture ID to patch.
+        dmx_universe: DMX universe number (1-256).
+        dmx_address: DMX address within universe (1-512).
+        fixture_type_id: Fixture type to assign (optional).
+        channel_id: Channel ID to assign (optional).
+        confirm_destructive: Must be True to proceed.
+
+    Returns:
+        str: JSON with commands_sent, raw_responses, risk_tier.
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Patching modifies fixture DMX assignments. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    client = await get_client()
+    commands_sent = []
+    raw_responses = []
+
+    # Optionally assign fixture type first
+    if fixture_type_id is not None:
+        from src.commands import assign as build_assign
+        cmd = build_assign(
+            source_type="fixturetype",
+            source_id=str(fixture_type_id),
+            target_type="fixture",
+            target_id=str(fixture_id),
+        )
+        raw = await client.send_command_with_response(cmd)
+        commands_sent.append(cmd)
+        raw_responses.append(raw)
+
+    # Assign DMX address
+    from src.commands import assign as build_assign
+    dmx_ref = f"{dmx_universe}.{dmx_address}"
+    cmd = build_assign(
+        source_type="dmx",
+        source_id=dmx_ref,
+        target_type="fixture",
+        target_id=str(fixture_id),
+    )
+    raw = await client.send_command_with_response(cmd)
+    commands_sent.append(cmd)
+    raw_responses.append(raw)
+
+    # Optionally assign channel
+    if channel_id is not None:
+        cmd = build_assign(
+            source_type="fixture",
+            source_id=str(fixture_id),
+            target_type="channel",
+            target_id=str(channel_id),
+        )
+        raw = await client.send_command_with_response(cmd)
+        commands_sent.append(cmd)
+        raw_responses.append(raw)
+
+    return json.dumps({
+        "commands_sent": commands_sent,
+        "raw_responses": raw_responses,
+        "fixture_id": fixture_id,
+        "dmx_address": f"{dmx_universe}.{dmx_address}",
+        "risk_tier": "DESTRUCTIVE",
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def unpatch_fixture(
+    fixture_id: int,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Unpatch a fixture (remove its DMX assignment) (DESTRUCTIVE).
+
+    MA2 syntax: delete fixture [fixture_id]
+    This removes the DMX assignment but does not delete the fixture from the show.
+
+    Args:
+        fixture_id: Fixture ID to unpatch.
+        confirm_destructive: Must be True to proceed.
+
+    Returns:
+        str: JSON with command_sent, raw_response, risk_tier.
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Unpatching removes DMX assignments. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    cmd = build_delete_fixture(fixture_id)
+    client = await get_client()
+    raw = await client.send_command_with_response(cmd)
+    return json.dumps({
+        "command_sent": cmd,
+        "raw_response": raw,
+        "risk_tier": "DESTRUCTIVE",
+        "blocked": False,
+    }, indent=2)
+
+
+@mcp.tool()
+@_handle_errors
+async def set_fixture_type_property(
+    fixture_type_id: int,
+    property_name: str,
+    value: str,
+    confirm_destructive: bool = False,
+) -> str:
+    """
+    Set a property on a fixture type in LiveSetup (DESTRUCTIVE).
+
+    Navigates to LiveSetup/FixtureTypes/[N] and assigns a property value.
+    Path: cd 10 -> cd 3 -> assign [fixture_type_id]/property=value -> cd /
+
+    Args:
+        fixture_type_id: Fixture type index (1-based).
+        property_name: Property to set (e.g. "Mode", "Name").
+        value: New value for the property.
+        confirm_destructive: Must be True to proceed.
+
+    Returns:
+        str: JSON with commands_sent, success, risk_tier.
+    """
+    if not confirm_destructive:
+        return json.dumps({
+            "blocked": True,
+            "error": "Modifying fixture type properties is DESTRUCTIVE. Set confirm_destructive=True to proceed.",
+            "risk_tier": "DESTRUCTIVE",
+        }, indent=2)
+
+    client = await get_client()
+    result = await set_property(
+        client,
+        path=f"10.3.{fixture_type_id}",
+        property_name=property_name,
+        value=value,
+    )
+
+    return json.dumps({
+        "commands_sent": result.commands_sent,
+        "raw_responses": result.raw_responses,
+        "success": result.success,
+        "verified_value": result.verified_value,
+        "error": result.error,
+        "risk_tier": "DESTRUCTIVE",
+        "blocked": False,
+    }, indent=2)
+
+
+# ============================================================
 # Server Startup
 # ============================================================
 
@@ -3317,7 +4352,15 @@ async def import_objects(
 def main():
     """MCP Server entry point."""
     logger.info("Starting grandMA2 MCP Server...")
-    logger.info(f"Connecting to grandMA2: {GMA_HOST}:{GMA_PORT}")
+    logger.info(f"Connecting to grandMA2: {_GMA_HOST}:{_GMA_PORT}")
+
+    # Warn if using factory-default credentials
+    if _GMA_USER == "administrator" and _GMA_PASSWORD == "admin":
+        logger.warning(
+            "Using factory-default credentials (administrator/admin). "
+            "Set GMA_USER and GMA_PASSWORD environment variables for "
+            "network deployments."
+        )
 
     # Start server using stdio transport
     mcp.run(transport="stdio")

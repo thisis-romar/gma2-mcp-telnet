@@ -80,6 +80,30 @@ def select_fixture(
 
 
 # ============================================================================
+# HIGHLIGHT FUNCTION KEYWORD
+# ============================================================================
+
+
+def highlight(on: bool = True) -> str:
+    """
+    Toggle highlight mode for selected fixtures.
+
+    Args:
+        on: True to enable, False to disable highlight
+
+    Returns:
+        str: MA command to toggle highlight
+
+    Examples:
+        >>> highlight()
+        'highlight on'
+        >>> highlight(False)
+        'highlight off'
+    """
+    return f"highlight {'on' if on else 'off'}"
+
+
+# ============================================================================
 # CLEAR FUNCTION KEYWORD
 # ============================================================================
 
