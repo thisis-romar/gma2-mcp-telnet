@@ -1,9 +1,9 @@
 ---
 title: "CD Tree \u2194 MCP Tool Correlation Matrix"
 description: Maps every MCP tool to its grandMA2 console object tree branch for navigation-based verification
-version: 2.3.0
+version: 3.0.0
 created: 2026-03-08T22:00:00Z
-last_updated: 2026-03-11T00:00:00Z
+last_updated: 2026-03-11T19:13:00Z
 ---
 
 # CD Tree \u2194 MCP Tool Correlation Matrix
@@ -14,9 +14,14 @@ This document maps every MCP tool to the grandMA2 console object tree branch
 it operates on. Use this to know which `cd` + `list` path to inspect when
 verifying that an MCP tool actually created/modified/deleted the expected object.
 
+The **\u2194** symbol in the title represents the **bidirectional relationship** between
+the grandMA2 console cd-tree (navigable object hierarchy) and the MCP tools that
+read from or write to it: every tool either navigates the tree, queries a branch,
+or produces a side-effect visible through `cd [branch]` + `list`.
+
 ## Quick Reference: 87 MCP Tools \u2192 Tree Branches
 
-### Navigation & Inspection Tools (6)
+### Navigation & Inspection Tools (7)
 
 | MCP Tool | Tree Branch | cd Command | Purpose |
 |----------|------------|------------|---------|
@@ -26,24 +31,29 @@ verifying that an MCP tool actually created/modified/deleted the expected object
 | `scan_console_indexes` | Any | `cd N` \u2192 `list` \u2192 `cd /` (loop) | Sequential index discovery |
 | `set_node_property` | Any | `cd [path]` \u2192 `assign N/prop=val` | Set property on tree node |
 | `get_object_info` | Any | `info [type] [id]` | Query object metadata |
+| `navigate_page` | `cd Page` / `cd FaderPage` | `Page N` | Navigate executor pages; updates `$FADERPAGE`/`$BUTTONPAGE`/`$CHANNELPAGE` |
 
 ### Object-Creating/Modifying Tools (13)
 
-| MCP Tool | Tree Branch | cd + list Verification | MA Command |
-|----------|------------|----------------------|------------|
-| `create_fixture_group` | `cd Group` | `cd Group` \u2192 `list` \u2192 check group ID appears | `SelFix N Thru M; Store Group X` |
-| `store_current_cue` | `cd Sequence.N` | `cd Sequence.N` \u2192 `list` \u2192 check cue ID appears | `Store Cue N [Sequence X]` |
-| `store_new_preset` | `cd PresetType.N` | `cd PresetType.N` \u2192 `list` \u2192 check preset ID | `Store Preset T.N` |
-| `store_object` | _varies_ | `cd [type]` \u2192 `list` \u2192 check object ID | `Store [Type] N` |
-| `assign_object(assign)` | `cd Executor` | `cd Executor` \u2192 `list` \u2192 check executor has source | `Assign [Src] At [Tgt]` |
-| `assign_object(layout)` | `cd Layout` | `cd Layout.N` \u2192 `list` \u2192 check object placed | `Assign [Src] At Layout N` |
-| `assign_object(function)` | `cd Executor` | `cd Executor` \u2192 `list` \u2192 check function set | `Assign [Func] Executor N` |
-| `assign_object(fade)` | `cd Sequence.N` | `cd Sequence.N` \u2192 `list` \u2192 check fade time | `Assign Fade T Cue N` |
-| `assign_object(empty)` | `cd Executor` | `cd Executor` \u2192 `list` \u2192 executor cleared | `Assign Empty Executor N` |
-| `label_or_appearance` | _varies_ | `cd [type]` \u2192 `list` \u2192 check name/appearance | `Label [Type] N "Name"` |
-| `copy_or_move_object` | _varies_ | `cd [type]` \u2192 `list` \u2192 check target ID | `Copy/Move [Type] N At M` |
-| `edit_object` | _varies_ | N/A (opens editor) | `Edit/Cut/Paste [Type] N` |
-| `set_intensity` | `cd Fixture`/`cd Channel` | Programmer state (not persistent in tree) | `Fixture N At L` |
+| MCP Tool | Tree Branch | cd + list Verification | MA Command | Risk |
+|----------|------------|----------------------|------------|------|
+| `create_fixture_group` | `cd Group` | `cd Group` \u2192 `list` \u2192 check group ID appears | `SelFix N Thru M; Store Group X` | DESTRUCTIVE |
+| `store_current_cue` | `cd Sequence.N` | `cd Sequence.N` \u2192 `list` \u2192 check cue ID appears | `Store Cue N [Sequence X]` | DESTRUCTIVE |
+| `store_cue_with_timing` | `cd Sequence.N` | `cd Sequence.N` \u2192 `list` \u2192 check cue ID appears | `Store Cue N /fade=F /out=O [Sequence X]` | DESTRUCTIVE |
+| `store_new_preset` | `cd PresetType.N` | `cd PresetType.N` \u2192 `list` \u2192 check preset ID | `Store Preset T.N` | DESTRUCTIVE |
+| `store_object` | _varies_ | `cd [type]` \u2192 `list` \u2192 check object ID | `Store [Type] N` | DESTRUCTIVE |
+| `update_cue_data` | `cd Sequence.N` | `cd Sequence.N` \u2192 `list` \u2192 cue contents updated | `Update Cue N [Sequence X]` | DESTRUCTIVE |
+| `assign_object(assign)` | `cd Executor` | `cd Executor` \u2192 `list` \u2192 check executor has source | `Assign [Src] At [Tgt]` | DESTRUCTIVE |
+| `assign_object(layout)` | `cd Layout` | `cd Layout.N` \u2192 `list` \u2192 check object placed | `Assign [Src] At Layout N` | DESTRUCTIVE |
+| `assign_object(function)` | `cd Executor` | `cd Executor` \u2192 `list` \u2192 check function set | `Assign [Func] Executor N` | DESTRUCTIVE |
+| `assign_object(fade)` | `cd Sequence.N` | `cd Sequence.N` \u2192 `list` \u2192 check fade time | `Assign Fade T Cue N` | DESTRUCTIVE |
+| `assign_object(empty)` | `cd Executor` | `cd Executor` \u2192 `list` \u2192 executor cleared | `Assign Empty Executor N` | DESTRUCTIVE |
+| `label_or_appearance` | _varies_ | `cd [type]` \u2192 `list` \u2192 check name/appearance | `Label [Type] N "Name"` | DESTRUCTIVE |
+| `copy_or_move_object` | _varies_ | `cd [type]` \u2192 `list` \u2192 check target ID | `Copy/Move [Type] N At M` | DESTRUCTIVE |
+| `edit_object` | _varies_ | N/A (opens editor) | `Edit/Cut/Paste [Type] N` | SAFE_WRITE |
+| `set_intensity` | Programmer | Programmer state (not persistent in tree) | `Fixture N At L` | SAFE_WRITE |
+| `save_recall_view` | `cd View` / `cd ViewButton` | `cd View` \u2192 `list` \u2192 check view appears | `Store View N`, `Go View N`, `Label View N "X"` | DESTRUCTIVE (store) |
+| `store_timecode_event` | `cd Timecode.N` | `cd Timecode.N` \u2192 `list` \u2192 check event time | `Store Timecode N Cue X At T` | DESTRUCTIVE |
 
 ### Object-Deleting Tools (2)
 
@@ -52,74 +62,104 @@ verifying that an MCP tool actually created/modified/deleted the expected object
 | `delete_object` | _varies_ | `cd [type]` \u2192 `list` \u2192 confirm ID is gone | `Delete [Type] N /noconfirm` |
 | `remove_content` | _varies_ | `cd [parent]` \u2192 `list` \u2192 confirm content removed | `Remove [Type] N` |
 
-### Playback & Control Tools (5)
+### Playback & Control Tools (13)
 
-| MCP Tool | Tree Branch | cd + list Verification | MA Command |
-|----------|------------|----------------------|------------|
-| `execute_sequence` | `cd Sequence` | N/A (playback state, not tree) | `Go+ Sequence N` |
-| `playback_action` | `cd Executor` | N/A (playback state) | `Go/GoBack/Goto` |
-| `run_macro` | `cd Macro` | N/A (triggers execution) | `Go+ Macro N` |
-| `apply_preset` | `cd PresetType.N` | Programmer state | `Call Preset T.N` |
-| `set_attribute` | `cd Fixture` | Programmer state | `Attribute "X" At V` |
+| MCP Tool | Tree Branch | cd + list Verification | MA Command | Risk |
+|----------|------------|----------------------|------------|------|
+| `execute_sequence` | `cd Sequence` | N/A (playback state, not tree) | `Go+ Sequence N` | SAFE_WRITE |
+| `playback_action` | `cd Executor` | N/A (playback state) | `Go/GoBack/Goto` | SAFE_WRITE |
+| `run_macro` | `cd Macro` | N/A (triggers execution) | `Go+ Macro N` | SAFE_WRITE |
+| `apply_preset` | `cd PresetType.N` | Programmer state | `Call Preset T.N` | SAFE_WRITE |
+| `set_attribute` | Programmer | Programmer state | `Attribute "X" At V` | SAFE_WRITE |
+| `release_executor` | `cd Executor` | N/A (playback state) | `Release Executor N` | SAFE_WRITE |
+| `blackout_toggle` | Global | N/A (output state) | `Blackout` | SAFE_WRITE |
+| `control_executor` | `cd Executor` | N/A (playback state) | `Go/Top/Off/Flash/Solo Executor N` | SAFE_WRITE / DESTRUCTIVE (set_speed) |
+| `control_timecode` | `cd Timecode` | N/A (playback state) | `Go/Off/Goto Timecode N` | SAFE_WRITE |
+| `control_timer` | `cd Timer` | N/A (runtime state) | `Go/Off/Oops Timer N` | SAFE_WRITE |
+| `set_executor_level` | `cd Executor` | N/A (fader level, not persistent) | `Fader Executor N At L` | SAFE_WRITE |
+| `toggle_console_mode` | Global | N/A (mode flag) | `Blind`/`Highlight`/`Solo`/`Freeze` | SAFE_WRITE |
+| `highlight_fixtures` | Programmer | N/A (programmer state) | `Highlight On/Off` | SAFE_WRITE |
 
-### Utility Tools (3)
+### Selection & Programmer Tools (8)
 
-| MCP Tool | Tree Branch | Notes |
-|----------|------------|-------|
-| `clear_programmer` | Programmer | Clears selection/values, no tree change |
-| `park_fixture` / `unpark_fixture` | `cd Fixture` | Parks/unparks output values |
-| `manage_variable` | N/A | Variables are not in the cd tree |
-| `send_raw_command` | Any | Depends on the raw command sent |
-| `search_codebase` | N/A | RAG search, no console interaction |
+| MCP Tool | Tree Branch | Notes | MA Command | Risk |
+|----------|------------|-------|------------|------|
+| `modify_selection` | Programmer | Adds/removes/replaces/clears fixture selection | `SelFix +/- N`, `SelFix N Thru M`, `Clear` | SAFE_WRITE |
+| `select_fixtures_by_group` | `cd Group` | Selects all fixtures in a group | `Group N` | SAFE_WRITE |
+| `select_executor` | `cd Executor` | Sets `$SELECTEDEXEC` | `Select Executor N` | SAFE_WRITE |
+| `select_feature` | `cd Feature` | Updates `$FEATURE`, `$PRESET`, `$ATTRIBUTE` | `Feature [name]` | SAFE_WRITE |
+| `select_preset_type` | `cd 10.2` | Updates `$PRESET`, `$FEATURE`, `$ATTRIBUTE` | `PresetType [id or name]` | SAFE_WRITE |
+| `adjust_value_relative` | Programmer | Nudges attribute in programmer; not tree-persistent | `+/- [attr] At V` | SAFE_WRITE |
+| `if_filter` | Programmer | Applies If filter to selection context | `If [condition]` | SAFE_WRITE |
+| `remove_from_programmer` | Programmer | Removes channels/fixtures/group from programmer | `Off Fixture N`, `Off Group N` | SAFE_WRITE |
 
-### Import/Export Tools (2)
+### Cue & Sequence Property Tools (4)
 
-| MCP Tool | Tree Branch | MA Command | Purpose |
-|----------|------------|------------|---------|
-| `export_objects` | _varies_ | `Export [Type] [Range] "file"` | Export show objects to XML file |
-| `import_objects` | _varies_ | `Import [Type] "file" At [id]` | Import objects from XML file |
+| MCP Tool | Tree Branch | cd + list Verification | MA Command | Risk |
+|----------|------------|----------------------|------------|------|
+| `set_cue_timing` | `cd Sequence.N` | `cd Sequence.N` \u2192 `list` \u2192 check updated timing | `Assign Fade T Delay D Cue N [Sequence X]` | DESTRUCTIVE |
+| `assign_cue_trigger` | `cd Sequence.N` | `cd Sequence.N` \u2192 `list` \u2192 check trigger type | `Assign [TriggerType] Cue N [Sequence X]` | DESTRUCTIVE |
+| `assign_executor_property` | `cd Executor` | `cd Executor` \u2192 `list` \u2192 check property | `Assign [Prop=V] [Sequence/Executor] N` | DESTRUCTIVE |
+| `set_sequence_property` | `cd Sequence.N` | `cd Sequence.N` \u2192 node property changed | `cd [path]` \u2192 `assign N/prop=val` | DESTRUCTIVE |
 
-### Highlight & Blackout Tools (2)
+### Utility Tools (6)
 
-| MCP Tool | Tree Branch | MA Command | Purpose |
-|----------|------------|------------|---------|
-| `highlight_fixtures` | Programmer | `Highlight On/Off` | Toggle highlight mode for selected fixtures |
-| `blackout_toggle` | Global | `Blackout` | Toggle master blackout |
+| MCP Tool | Tree Branch | Notes | Risk |
+|----------|------------|-------|------|
+| `clear_programmer` | Programmer | Clears selection/values, no tree change | SAFE_WRITE |
+| `park_fixture` | `cd Fixture` | Parks output values | SAFE_WRITE |
+| `unpark_fixture` | `cd Fixture` | Unparks output values | SAFE_WRITE |
+| `manage_variable` | N/A | Variables are not in the cd tree | SAFE_WRITE |
+| `send_raw_command` | Any | Depends on the raw command sent | varies |
+| `undo_last_action` | Any | `Oops` N times; reverts last N tree changes | SAFE_WRITE |
 
-### Executor & Playback Tools (1)
+### Import/Export Tools (5)
 
-| MCP Tool | Tree Branch | cd + list Verification | MA Command |
-|----------|------------|----------------------|------------|
-| `release_executor` | `cd Executor` | N/A (playback state) | `Release Executor N` |
+| MCP Tool | Tree Branch | MA Command | Purpose | Risk |
+|----------|------------|------------|---------|------|
+| `export_objects` | _varies_ | `Export [Type] [Range] "file"` | Export show objects to XML file | SAFE_READ |
+| `import_objects` | _varies_ | `Import [Type] "file" At [id]` | Import objects from XML file | DESTRUCTIVE |
+| `import_fixture_type` | `cd 10.3` | `Import FixtureType "file"` (EditSetup context) | Import fixture type from MA2 library | DESTRUCTIVE |
+| `import_fixture_layer` | `cd 10.4` | `Import Layer "file"` (EditSetup context) | Import fixture layer XML into show patch | DESTRUCTIVE |
+| `generate_fixture_layer_xml` | N/A (file I/O) | Writes XML file to importexport dir | Generate fixture layer XML for import | DESTRUCTIVE |
 
-### Show Management Tools (2)
+### Show Management Tools (3)
 
 | MCP Tool | Tree Branch | MA Command | Risk |
 |----------|------------|------------|------|
 | `load_show` | N/A | `LoadShow "name"` | DESTRUCTIVE — replaces current show |
 | `new_show` | N/A | `NewShow "name"` | DESTRUCTIVE — replaces current show |
+| `save_show` | N/A | `Save` / `SaveAs "name"` | SAFE_WRITE — persists current show to disk |
 
-### Variable & History Tools (2)
+### Variable & History Tools (3)
 
 | MCP Tool | Tree Branch | MA Command | Purpose |
 |----------|------------|------------|---------|
-| `get_variable` | N/A | `GetUserVar`, `ListVar`, `ListUserVar` | Read variables (complement to `manage_variable`) |
+| `get_variable` | N/A | `ListVar`, `ListUserVar` | Read system/user variables |
+| `list_system_variables` | N/A | `ListVar` | List all 26 built-in system variables |
 | `list_undo_history` | N/A | `ListOops` | Show undo history |
 
-### List & Library Tools (2)
+### List & Query Tools (8)
 
 | MCP Tool | Tree Branch | MA Command | Purpose |
 |----------|------------|------------|---------|
 | `list_shows` | N/A | `ListShows` | List available show files |
 | `list_library` | N/A | `ListLibrary`, `ListEffectLibrary`, `ListMacroLibrary` | Browse fixture/effect/macro libraries |
+| `query_object_list` | _varies_ | `list [type]` | List objects by type (groups, cues, presets, …) |
+| `list_fixtures` | `cd Fixture` | `list fixture [N]` | List/check fixtures; use before park/intensity/attribute |
+| `list_sequence_cues` | `cd Sequence.N` | `list cue [Sequence N]` | List/check cues within a sequence |
+| `list_preset_pool` | `cd PresetType.N` | `list preset [T.N]` | List Global preset pool entries |
+| `discover_object_names` | _varies_ | `cd [type]` \u2192 `list` \u2192 `cd /` | Navigate pool, return names for wildcard building |
+| `get_executor_status` | `cd Executor` | `list executor [N]` | Query executor status (running/stopped/level) |
 
-### LiveSetup Navigation Tools (3)
+### LiveSetup Navigation Tools (4)
 
 | MCP Tool | Tree Branch | cd Path | Purpose |
 |----------|------------|---------|---------|
-| `list_fixture_types` | `cd 10.3` | `cd /` → `cd 10` → `cd 3` → `list` | List all fixture types in the show |
-| `list_layers` | `cd 10.4` | `cd /` → `cd 10` → `cd 4` → `list` | List all fixture layers |
-| `list_universes` | `cd 10.5` | `cd /` → `cd 10` → `cd 5` → `list` | List DMX universes |
+| `list_fixture_types` | `cd 10.3` | `cd /` \u2192 `cd 10` \u2192 `cd 3` \u2192 `list` | List all fixture types in the show |
+| `list_layers` | `cd 10.4` | `cd /` \u2192 `cd 10` \u2192 `cd 4` \u2192 `list` | List all fixture layers |
+| `list_universes` | `cd 10.5` | `cd /` \u2192 `cd 10` \u2192 `cd 5` \u2192 `list` | List DMX universes |
+| `browse_preset_type` | `cd 10.2.N` | `cd /` \u2192 `cd 10.2.N[.M[.K]]` \u2192 `list` | Browse feature/attribute tree under a preset type |
 
 ### MAtricks Tools (2)
 
@@ -132,10 +172,20 @@ verifying that an MCP tool actually created/modified/deleted the expected object
 
 | MCP Tool | Tree Branch | cd Path | MA Command | Risk |
 |----------|------------|---------|------------|------|
-| `browse_patch_schedule` | `cd 10.3.N` | `cd /` → `cd 10` → `cd 3` → `cd N` → `list` | Navigation + list | SAFE_READ |
+| `browse_patch_schedule` | `cd 10.3.N` | `cd /` \u2192 `cd 10` \u2192 `cd 3` \u2192 `cd N` \u2192 `list` | Navigation + list | SAFE_READ |
 | `patch_fixture` | `cd Fixture` | N/A | `Assign FixtureType At Fixture; Assign DMX At Fixture` | DESTRUCTIVE |
 | `unpatch_fixture` | `cd Fixture` | N/A | `Delete Fixture N` | DESTRUCTIVE |
 | `set_fixture_type_property` | `cd 10.3.N` | `set_property("10.3.N", ...)` | `cd` + `assign N/prop=val` | DESTRUCTIVE |
+
+### Categorization & Discovery Tools (5)
+
+| MCP Tool | Tree Branch | Purpose | Risk |
+|----------|------------|---------|------|
+| `search_codebase` | N/A | RAG semantic search across MCP server codebase | SAFE_READ |
+| `list_tool_categories` | N/A | List ML-generated taxonomy of all MCP tools | SAFE_READ |
+| `recluster_tools` | N/A | Re-run K-Means clustering on all tools | SAFE_READ |
+| `get_similar_tools` | N/A | Find MCP tools similar to a given tool | SAFE_READ |
+| `suggest_tool_for_task` | N/A | Suggest MCP tools for a natural-language task | SAFE_READ |
 
 ## Object Tree Branches (53 navigable via cd)
 
@@ -259,17 +309,19 @@ delete_object("effect", 99, confirm_destructive=True)
 
 | Category | Count | Tools |
 |----------|-------|-------|
-| Navigation & Inspection | 6 | `navigate_console`, `get_console_location`, `list_console_destination`, `scan_console_indexes`, `set_node_property`, `get_object_info` |
-| Object Create/Modify | 13 | `create_fixture_group`, `store_current_cue`, `store_new_preset`, `store_object`, `assign_object` (5 modes), `label_or_appearance`, `copy_or_move_object`, `edit_object`, `set_intensity` |
+| Navigation & Inspection | 7 | `navigate_console`, `get_console_location`, `list_console_destination`, `scan_console_indexes`, `set_node_property`, `get_object_info`, `navigate_page` |
+| Object Create/Modify | 13 | `create_fixture_group`, `store_current_cue`, `store_cue_with_timing`, `store_new_preset`, `store_object`, `update_cue_data`, `assign_object` _(5 modes: assign/layout/function/fade/empty)_, `label_or_appearance`, `copy_or_move_object`, `edit_object`, `set_intensity`, `save_recall_view`, `store_timecode_event` |
 | Object Delete | 2 | `delete_object`, `remove_content` |
-| Playback & Control | 7 | `execute_sequence`, `playback_action`, `run_macro`, `apply_preset`, `set_attribute`, `release_executor`, `blackout_toggle` |
-| Import/Export | 2 | `export_objects`, `import_objects` |
-| Highlight & Selection | 1 | `highlight_fixtures` |
-| Show Management | 2 | `load_show`, `new_show` |
-| Variable & History | 2 | `get_variable`, `list_undo_history` |
-| List & Library | 2 | `list_shows`, `list_library` |
-| LiveSetup Navigation | 3 | `list_fixture_types`, `list_layers`, `list_universes` |
+| Playback & Control | 13 | `execute_sequence`, `playback_action`, `run_macro`, `apply_preset`, `set_attribute`, `release_executor`, `blackout_toggle`, `control_executor`, `control_timecode`, `control_timer`, `set_executor_level`, `toggle_console_mode`, `highlight_fixtures` |
+| Selection & Programmer | 8 | `modify_selection`, `select_fixtures_by_group`, `select_executor`, `select_feature`, `select_preset_type`, `adjust_value_relative`, `if_filter`, `remove_from_programmer` |
+| Cue & Sequence Properties | 4 | `set_cue_timing`, `assign_cue_trigger`, `assign_executor_property`, `set_sequence_property` |
+| Import/Export | 5 | `export_objects`, `import_objects`, `import_fixture_type`, `import_fixture_layer`, `generate_fixture_layer_xml` |
+| Show Management | 3 | `load_show`, `new_show`, `save_show` |
+| Variable & History | 3 | `get_variable`, `list_system_variables`, `list_undo_history` |
+| List & Query | 8 | `list_shows`, `list_library`, `query_object_list`, `list_fixtures`, `list_sequence_cues`, `list_preset_pool`, `discover_object_names`, `get_executor_status` |
+| LiveSetup Navigation | 4 | `list_fixture_types`, `list_layers`, `list_universes`, `browse_preset_type` |
 | MAtricks | 2 | `manage_matricks`, `create_matricks_library` |
 | Fixture Patching | 4 | `browse_patch_schedule`, `patch_fixture`, `unpatch_fixture`, `set_fixture_type_property` |
-| Utility | 5 | `clear_programmer`, `park_fixture`/`unpark_fixture`, `manage_variable`, `send_raw_command`, `search_codebase` |
-| **Total** | **74** | |
+| Utility | 6 | `clear_programmer`, `park_fixture`, `unpark_fixture`, `manage_variable`, `send_raw_command`, `undo_last_action` |
+| Categorization & Discovery | 5 | `search_codebase`, `list_tool_categories`, `recluster_tools`, `get_similar_tools`, `suggest_tool_for_task` |
+| **Total** | **87** | |
