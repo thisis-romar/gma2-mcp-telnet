@@ -57,7 +57,8 @@ class TestExtractLinks:
 
         soup = BeautifulSoup(_LINK_HTML, "html.parser")
         links = _extract_links(soup, "https://example.com/docs/index.html", "https://example.com/docs/")
-        assert not any("other.com" in l for l in links)
+        from urllib.parse import urlparse
+        assert not any(urlparse(link).netloc == "other.com" for link in links)
 
     def test_resolves_relative_links(self):
         from bs4 import BeautifulSoup

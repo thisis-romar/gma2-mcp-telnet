@@ -215,7 +215,6 @@ class TestCDTreeNameCorrelation:
     def test_derive_prefix_pattern_from_names(self):
         """Common prefix of discovered names → wildcard pattern → command."""
         # Simulated list output names (as returned by list_console_destination())
-        discovered_names = ["Mac700 Front", "Mac700 Back", "Mac700 Side"]
         # Derive common prefix pattern
         common_prefix = "Mac700"
         pattern = f"{common_prefix}*"
@@ -224,7 +223,6 @@ class TestCDTreeNameCorrelation:
 
     def test_derive_infix_pattern_from_names(self):
         """Names containing 'Wash' → *Wash* pattern."""
-        discovered_names = ["Front Wash", "Back Wash", "Side Wash"]
         pattern = "*Wash*"
         cmd = list_objects("group", name=pattern, match_mode="wildcard")
         assert cmd == "list group *Wash*"

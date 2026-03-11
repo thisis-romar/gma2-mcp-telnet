@@ -79,9 +79,6 @@ from src.commands import (
     clear_selection as build_clear_selection,
 )
 from src.commands import (
-    clear_selection as build_clear_selection2,
-)
-from src.commands import (
     copy as build_copy,
 )
 from src.commands import (
@@ -2580,7 +2577,7 @@ async def modify_selection(
 
     client = await get_client()
     if action == "clear":
-        cmd = build_clear_selection2()
+        cmd = build_clear_selection()
     elif action == "add":
         if len(fixture_ids) == 1 and end_id is not None:
             cmd = build_add_to_selection(fixture_ids[0], end=end_id)
@@ -3983,6 +3980,14 @@ async def list_sequence_cues(
         - Cues for executor 1: list_sequence_cues(executor_id=1)
         - Check cue 99 on executor 1: list_sequence_cues(executor_id=1, cue_id=99)
     """
+    if sequence_id is None and executor_id is None:
+        return json.dumps({
+            "error": "Must supply either sequence_id or executor_id.",
+            "command_sent": None,
+            "risk_tier": "SAFE_READ",
+            "blocked": True,
+        }, indent=2)
+
     client = await get_client()
     executor_probe_response: str | None = None
 
@@ -4561,8 +4566,8 @@ async def manage_matricks(
     client = await get_client()
 
     # Navigate to root, then cd MAtricks
-    nav = await navigate(client, "/")
-    nav = await navigate(client, "MAtricks")
+    await navigate(client, "/")
+    await navigate(client, "MAtricks")
 
     # Use assign property pattern
     from src.commands import assign_property as _build_assign_property

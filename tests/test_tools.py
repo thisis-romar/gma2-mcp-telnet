@@ -3846,8 +3846,6 @@ class TestGenerateFixtureLayerXmlTool:
         from src.server import generate_fixture_layer_xml
         monkeypatch.setattr("src.server.generate_fixture_layer_xml.__wrapped__", None, raising=False)
         # Patch output dir to tmp_path
-        original = None
-
         # We'll patch os.path.join indirectly by monkeypatching the output_dir
         # inside the function — simplest approach: just call the real function
         # since the importexport dir exists on this machine.
