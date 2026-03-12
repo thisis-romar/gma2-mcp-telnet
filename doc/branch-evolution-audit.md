@@ -1,16 +1,16 @@
 ---
 title: Branch Evolution Audit Report
 description: Full audit of all branch evolution relative to main with timestamps, Mermaid diagrams, and change progression
-version: 1.2.0
+version: 1.2.1
 created: 2026-03-04T16:30:00Z
-last_updated: 2026-03-07T00:00:00Z
+last_updated: 2026-03-12T12:00:00Z
 ---
 
 # Branch Evolution Audit Report
 
 ## Context
 
-This audit documents the complete branch lifecycle of the **gma2-mcp-telnet** repository — an MCP server for controlling grandMA2 lighting consoles via Telnet. The report maps every branch's relationship to the default branch (`main`), visualizes change progression with timestamps, and identifies development patterns across 78 commits spanning 3 months.
+This audit documents the complete branch lifecycle of the **ma2-onPC-MCP** repository — an MCP server for controlling grandMA2 lighting consoles via Telnet. The report maps every branch's relationship to the default branch (`main`), visualizes change progression with timestamps, and identifies development patterns across 78 commits spanning 3 months.
 
 ---
 
@@ -20,7 +20,7 @@ This audit documents the complete branch lifecycle of the **gma2-mcp-telnet** re
 ┌──────────────────────────────────────────────────────────────────┐
 │  WORKTREE STATE (as of 2026-03-05)                               │
 ├──────────────────────────────────────────────────────────────────┤
-│  Path     : /home/user/gma2-mcp-telnet                           │
+│  Path     : /home/user/ma2-onPC-MCP                           │
 │  Branch   : claude/branch-evolution-audit-WTtXJ                  │
 │  HEAD     : c4188b6 docs: add comprehensive branch evolution     │
 │  Status   : clean — nothing to commit                            │
@@ -145,7 +145,7 @@ The narrative arc of the project — what happened in each era.
 
 ```mermaid
 timeline
-    title gma2-mcp-telnet Development Phases
+    title ma2-onPC-MCP Development Phases
     Nov 30 2025 : Project kickoff
                 : 14 commits — store, fixture, channel, group
                 : Telnet client + FastMCP server skeleton

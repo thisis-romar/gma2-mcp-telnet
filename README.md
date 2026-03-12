@@ -1,9 +1,9 @@
 ---
 title: GMA2 MCP
 description: MCP server for controlling grandMA2 lighting consoles via Telnet
-version: 3.1.0
+version: 3.2.0
 created: 2025-02-27T00:00:00Z
-last_updated: 2026-03-12T00:00:00Z
+last_updated: 2026-03-12T12:00:00Z
 ---
 
 <div align="center">
@@ -13,15 +13,15 @@ last_updated: 2026-03-12T00:00:00Z
 [![Tests](https://github.com/thisis-romar/ma2-onPC-MCP/actions/workflows/test.yml/badge.svg)](https://github.com/thisis-romar/ma2-onPC-MCP/actions/workflows/test.yml)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Tools](https://img.shields.io/badge/MCP_tools-90-brightgreen)
-![Tests](https://img.shields.io/badge/tests-1365-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1440-brightgreen)
 ![License](https://img.shields.io/badge/license-Apache_2.0-orange)
 
 **MCP server for controlling grandMA2 lighting consoles via Telnet.**
 
-Exposes grandMA2 commands as [Model Context Protocol](https://modelcontextprotocol.io/) tools so AI assistants
-(Claude Desktop, VS Code, etc.) can operate a lighting console programmatically.
+Exposes grandMA2 commands as [Model Context Protocol](https://modelcontextprotocol.io/) tools, resources, and prompts
+so AI assistants (Claude Desktop, VS Code, etc.) can operate a lighting console programmatically.
 
-[Quick Start](#quick-start) · [Architecture](#architecture) · [90 MCP Tools](#mcp-tools) · [Safety System](#safety-system) · [RAG Pipeline](#rag-pipeline)
+[Quick Start](#quick-start) · [Architecture](#architecture) · [90 MCP Tools](#mcp-tools) · [Resources & Prompts](#mcp-resources--prompts) · [Safety System](#safety-system) · [RAG Pipeline](#rag-pipeline)
 
 </div>
 
@@ -54,16 +54,25 @@ uv run python -m src.server  # starts MCP server (stdio transport)
 
 ```mermaid
 graph TD
-    A["🎭 MCP Server Layer<br/><code>src/server.py</code><br/>90 tools · safety gate"] --> B
-    B["🧭 Navigation Layer<br/><code>src/navigation.py</code><br/>cd · list · scan · set_property"] --> C
-    C["🔧 Command Builders<br/><code>src/commands/</code><br/>110+ pure functions → strings"] --> D
-    D["📡 Telnet Client<br/><code>src/telnet_client.py</code><br/>async · auth · injection prevention"]
+    A["MCP Server Layer<br/><code>src/server.py</code><br/>90 tools · safety gate · transport"] --> B
+    T["Shared Client<br/><code>src/tools.py</code><br/>get_client · parse_listvar · env config"] --> D
+    R["MCP Resources<br/><code>src/resources.py</code><br/>6 read-only gma2:// resources"] --> T
+    P["MCP Prompts<br/><code>src/prompts.py</code><br/>5 guided workflow templates"] --> T
+    X["MCP Extensions<br/><code>src/completions.py · subscriptions.py<br/>elicitation.py · sampling.py</code>"] --> T
+    B["Navigation Layer<br/><code>src/navigation.py</code><br/>cd · list · scan · set_property"] --> C
+    C["Command Builders<br/><code>src/commands/</code><br/>157 pure functions → strings"] --> D
+    D["Telnet Client<br/><code>src/telnet_client.py</code><br/>async · auth · injection prevention"]
 
-    E["📖 Prompt Parser<br/><code>src/prompt_parser.py</code><br/>prompt detection · list parsing"] -.-> B
-    F["🛡️ Vocabulary & Safety<br/><code>src/vocab.py</code><br/>141 keywords · risk tiers"] -.-> A
-    G["🔍 RAG Pipeline<br/><code>rag/</code><br/>crawl → chunk → embed → query"] -.-> A
+    A --> T
+    E["Prompt Parser<br/><code>src/prompt_parser.py</code><br/>prompt detection · list parsing"] -.-> B
+    F["Vocabulary & Safety<br/><code>src/vocab.py</code><br/>141 keywords · risk tiers"] -.-> A
+    G["RAG Pipeline<br/><code>rag/</code><br/>crawl → chunk → embed → query"] -.-> A
 
     style A fill:#1a1a2e,stroke:#e94560,color:#fff
+    style T fill:#1a1a2e,stroke:#e94560,color:#fff
+    style R fill:#1a1a2e,stroke:#2a9d8f,color:#fff
+    style P fill:#1a1a2e,stroke:#2a9d8f,color:#fff
+    style X fill:#1a1a2e,stroke:#2a9d8f,color:#fff
     style B fill:#1a1a2e,stroke:#0f3460,color:#fff
     style C fill:#1a1a2e,stroke:#16213e,color:#fff
     style D fill:#1a1a2e,stroke:#533483,color:#fff
@@ -86,6 +95,10 @@ GMA_PASSWORD=admin         # default: admin
 GMA_PORT=30000             # default: 30000 (30001 = read-only)
 GMA_SAFETY_LEVEL=standard  # standard (default), admin, or read-only
 LOG_LEVEL=INFO             # default: INFO
+
+# Transport (optional — default: stdio)
+GMA_TRANSPORT=stdio        # stdio, sse, or streamable-http
+GMA_MCP_PORT=8080          # HTTP port (only used with sse/streamable-http)
 
 # RAG Pipeline (optional)
 GITHUB_MODELS_TOKEN=                          # GitHub PAT with models:read scope
@@ -377,6 +390,40 @@ python -m scripts.create_matricks_library --color-only
 
 </details>
 
+## MCP Resources & Prompts
+
+Beyond the 90 tools, the server exposes **6 read-only resources** and **5 prompt templates**.
+
+### Resources (`gma2://` URIs)
+
+| URI | Returns |
+|-----|---------|
+| `gma2://console/status` | All 26 system variables as JSON |
+| `gma2://console/location` | Current cd path and prompt text |
+| `gma2://show/fixtures` | Fixture pool listing |
+| `gma2://show/groups` | Group pool listing |
+| `gma2://show/sequences` | Sequence pool listing |
+| `gma2://show/sequences/{seq_id}/cues` | Cues in a specific sequence |
+
+### Prompts
+
+| Prompt | Purpose |
+|--------|---------|
+| `program-color-chase` | Guided color chase programming workflow |
+| `setup-moving-lights` | Patch + group + focus workflow |
+| `troubleshoot-connectivity` | Telnet/network diagnostic steps |
+| `create-cue-sequence` | Step-by-step cue sequence creation |
+| `show-status-report` | Dynamic — fetches live console state |
+
+### Additional MCP Features
+
+| Feature | Module | Description |
+|---------|--------|-------------|
+| Completions | `src/completions.py` | Argument autocompletion for prompts and resource templates |
+| Subscriptions | `src/subscriptions.py` | Resource change notification tracking |
+| Elicitation | `src/elicitation.py` | Server-initiated user input (destructive op confirmation) |
+| Sampling | `src/sampling.py` | Server-initiated LLM calls (cue suggestions, Lua generation) |
+
 ## Client Setup
 
 ### Claude Desktop
@@ -652,7 +699,7 @@ uv run python scripts/scan_tree.py --max-depth 20 --output scan_full.json --resu
 
 ## Command Builders
 
-The command builder layer (`src/commands/`) generates grandMA2 command strings as pure functions — no network I/O. Over **110 exported functions** covering navigation, selection, playback, values, store, delete, assign, label, and more.
+The command builder layer (`src/commands/`) generates grandMA2 command strings as pure functions — no network I/O. **157 exported functions** covering navigation, selection, playback, values, store, delete, assign, label, and more.
 
 > grandMA2 syntax: `[Function] [Object]` — keywords are **Function** (verbs), **Object** (nouns), or **Helping** (prepositions).
 
@@ -757,13 +804,20 @@ The command builder layer (`src/commands/`) generates grandMA2 command strings a
 ```
 ma2-onPC-MCP/
 ├── src/
-│   ├── server.py                   # MCP server (FastMCP, 90 tools)
+│   ├── server.py                   # MCP server (FastMCP, 90 tools, transport)
+│   ├── tools.py                    # Shared client infrastructure (get_client, parse_listvar)
+│   ├── resources.py                # 6 MCP resources (gma2:// URIs)
+│   ├── prompts.py                  # 5 MCP prompt templates
+│   ├── completions.py              # Argument autocompletion
+│   ├── subscriptions.py            # Resource subscription tracking
+│   ├── elicitation.py              # Server-initiated user input
+│   ├── sampling.py                 # Server-initiated LLM calls
 │   ├── telnet_client.py            # Async Telnet client (telnetlib3)
 │   ├── navigation.py               # Navigation API (cd + list + parsing)
 │   ├── prompt_parser.py            # Telnet prompt & list output parser
 │   ├── vocab.py                    # 141 keywords, categories & safety tiers
 │   ├── categorization/             # ML tool categorization (K-Means)
-│   └── commands/                   # 110+ pure command builder functions
+│   └── commands/                   # 157 pure command builder functions
 │       ├── objects/                # Object keywords (9 modules)
 │       └── functions/              # Function keywords (15 modules)
 ├── rag/                            # RAG pipeline
@@ -775,7 +829,7 @@ ma2-onPC-MCP/
 │   ├── scan_tree.py                # Recursive object-tree scanner
 │   ├── rag_ingest.py               # RAG ingestion CLI
 │   └── rag_query.py                # RAG query CLI
-├── tests/                          # 1365 unit tests + 132 live tests
+├── tests/                          # 1440 unit tests + 132 live tests
 ├── vscode-mcp-provider/            # VS Code MCP extension
 └── doc/                            # MA2 User Manual PDF
 ```

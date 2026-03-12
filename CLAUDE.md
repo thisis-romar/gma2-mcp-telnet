@@ -1,7 +1,7 @@
 ---
 title: Project Rules
 description: Agent conventions, architecture quick-reference, and development rules for ma2-onPC-MCP
-version: 4.0.0
+version: 4.0.1
 created: 2026-03-01T00:00:00Z
 last_updated: 2026-03-12T12:00:00Z
 ---

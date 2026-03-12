@@ -1,12 +1,12 @@
 ---
-title: "grandMA2 CD Tree — Full Validated Print"
+title: "grandMA2 CD Tree — Full Scan (8,293 nodes)"
 description: "Complete recursive cd tree of grandMA2 onPC v3.9.60.65, live-scanned via telnet"
-version: 1.0.0
+version: 1.0.1
 created: 2026-03-11T22:44:59Z
-last_updated: 2026-03-11T22:44:59Z
+last_updated: 2026-03-12T12:00:00Z
 ---
 
-# grandMA2 CD Tree — Full Validated Print
+# grandMA2 CD Tree — Full Scan (8,293 nodes)
 
 **Source:** `scan_output.json` (live telnet scan of grandMA2 onPC v3.9.60.65)
 **Scan stats:** 8,293 nodes visited | 965 duplicates | 142 skipped | 138 min elapsed
