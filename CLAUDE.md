@@ -1,7 +1,7 @@
 ---
 title: Project Rules
 description: Agent conventions, architecture quick-reference, and development rules for ma2-onPC-MCP
-version: 4.0.1
+version: 4.0.2
 created: 2026-03-01T00:00:00Z
 last_updated: 2026-03-12T12:00:00Z
 ---
@@ -30,9 +30,9 @@ All network I/O is isolated in `src/telnet_client.py`. Command builders in `src/
 | `src/telnet_client.py` | Async Telnet (telnetlib3), auth, send/receive, injection prevention |
 | `src/navigation.py` | cd + list + prompt parsing orchestration |
 | `src/prompt_parser.py` | Parse console prompts and `list` tabular output |
-| `src/commands/` | 110+ pure command-builder functions, grouped by keyword type |
+| `src/commands/` | 157 pure command-builder functions, grouped by keyword type |
 | `src/commands/helpers.py` | `quote_name()` wildcard spec, `_build_options()` flag assembly |
-| `src/vocab.py` | 141 keyword vocab, `KeywordCategory`, `RiskTier`, `classify_token()` |
+| `src/vocab.py` | 158 keyword vocab, `KeywordCategory`, `RiskTier`, `classify_token()` |
 | `rag/ingest/` | crawl → chunk → embed → store pipeline |
 | `rag/retrieve/` | cosine similarity search + rerank |
 | `rag/store/sqlite.py` | SQLite vector store (`rag/store/rag.db`) |

@@ -1,7 +1,7 @@
 ---
 title: GMA2 MCP
 description: MCP server for controlling grandMA2 lighting consoles via Telnet
-version: 3.2.0
+version: 3.2.1
 created: 2025-02-27T00:00:00Z
 last_updated: 2026-03-12T12:00:00Z
 ---
@@ -65,7 +65,7 @@ graph TD
 
     A --> T
     E["Prompt Parser<br/><code>src/prompt_parser.py</code><br/>prompt detection · list parsing"] -.-> B
-    F["Vocabulary & Safety<br/><code>src/vocab.py</code><br/>141 keywords · risk tiers"] -.-> A
+    F["Vocabulary & Safety<br/><code>src/vocab.py</code><br/>158 keywords · risk tiers"] -.-> A
     G["RAG Pipeline<br/><code>rag/</code><br/>crawl → chunk → embed → query"] -.-> A
 
     style A fill:#1a1a2e,stroke:#e94560,color:#fff
@@ -490,12 +490,12 @@ graph LR
 
 ### Keyword Classification
 
-The vocabulary classifies all **141 grandMA2 keywords** into categories:
+The vocabulary classifies all **158 grandMA2 keywords** into categories:
 
 | Category | Count | Description | Examples |
 |----------|-------|-------------|----------|
 | `OBJECT` | 56 | Console objects (nouns) | Channel, Fixture, Group, Preset, Executor |
-| `FUNCTION` | 79 | Actions (verbs) | Store, Delete, Go, At, List, Info |
+| `FUNCTION` | 89 | Actions (verbs) | Store, Delete, Go, At, List, Info |
 | `HELPING` | 7 | Syntax connectors | And, Thru, Fade, Delay, If |
 | `SPECIAL_CHAR` | 6 | Operator symbols | Plus `+`, Minus `-`, Dot `.`, Slash `/` |
 
@@ -815,7 +815,7 @@ ma2-onPC-MCP/
 │   ├── telnet_client.py            # Async Telnet client (telnetlib3)
 │   ├── navigation.py               # Navigation API (cd + list + parsing)
 │   ├── prompt_parser.py            # Telnet prompt & list output parser
-│   ├── vocab.py                    # 141 keywords, categories & safety tiers
+│   ├── vocab.py                    # 158 keywords, categories & safety tiers
 │   ├── categorization/             # ML tool categorization (K-Means)
 │   └── commands/                   # 157 pure command builder functions
 │       ├── objects/                # Object keywords (9 modules)
