@@ -280,7 +280,15 @@ from src.commands import (
 )
 from src.navigation import get_current_location, list_destination, navigate, scan_indexes, set_property
 from src.telnet_client import GMA2TelnetClient
-from src.tools import set_gma2_client
+from src.tools import (
+    GMA_HOST,
+    GMA_PASSWORD,
+    GMA_PORT,
+    GMA_USER,
+    get_client,
+    parse_listvar,
+    set_gma2_client,
+)
 from src.vocab import RiskTier, build_v39_spec, classify_token
 
 # Load environment variables
@@ -293,11 +301,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Get configuration from environment variables
-_GMA_HOST = os.getenv("GMA_HOST", "127.0.0.1")
-_GMA_PORT = int(os.getenv("GMA_PORT", "30000"))
-_GMA_USER = os.getenv("GMA_USER", "administrator")
-_GMA_PASSWORD = os.getenv("GMA_PASSWORD", "admin")
+# Aliases for backward compat within this module
+_GMA_HOST = GMA_HOST
+_GMA_PORT = GMA_PORT
+_GMA_USER = GMA_USER
+_GMA_PASSWORD = GMA_PASSWORD
 _GMA_SAFETY_LEVEL = os.getenv("GMA_SAFETY_LEVEL", "standard").lower()
 
 # Build vocab spec once for token classification / safety gating
@@ -358,46 +366,12 @@ mcp = FastMCP(
     """,
 )
 
-# Global telnet client instance
-_client: GMA2TelnetClient | None = None
-_connected: bool = False
-_client_lock = asyncio.Lock()
+# get_client() is now imported from src.tools
 
+# Register MCP resources (read-only console state)
+from src.resources import register_resources  # noqa: E402
 
-async def get_client() -> GMA2TelnetClient:
-    """
-    Get or create a telnet client instance (async).
-
-    On first call, establishes connection and login. Subsequent calls return
-    the already connected client. If the connection has dropped, reconnects
-    automatically. Uses an asyncio.Lock to prevent concurrent connection attempts.
-    """
-    global _client, _connected
-
-    async with _client_lock:
-        # Check if existing connection is still healthy
-        if _client is not None and _connected and not _client.is_connected:
-            logger.warning("Connection lost, reconnecting...")
-            _connected = False
-
-        if _client is None or not _connected:
-            _client = GMA2TelnetClient(
-                host=_GMA_HOST,
-                port=_GMA_PORT,
-                user=_GMA_USER,
-                password=_GMA_PASSWORD,
-            )
-            try:
-                await _client.connect()
-                await _client.login()
-                _connected = True
-                set_gma2_client(_client)
-                logger.info(f"Connected to grandMA2: {_GMA_HOST}:{_GMA_PORT}")
-            except Exception:
-                _connected = False
-                raise
-
-        return _client
+register_resources(mcp)
 
 
 def _handle_errors(func):
@@ -1736,28 +1710,8 @@ async def query_object_list(
     }, indent=2)
 
 
-def _parse_listvar(raw: str, filter_prefix: str | None = None) -> dict[str, str]:
-    """Parse ListVar telnet output into a {$NAME: value} dict.
-
-    ListVar lines have the format:  $Global : $VARNAME = VALUE
-    """
-    variables: dict[str, str] = {}
-    for line in raw.splitlines():
-        line = line.strip()
-        if "=" not in line or line.startswith("["):
-            continue
-        # Strip scope prefix: "$Global : $VARNAME = VALUE" → "$VARNAME = VALUE"
-        if " : " in line:
-            _, _, line = line.partition(" : ")
-            line = line.strip()
-        name, _, value = line.partition("=")
-        name = name.strip().lstrip("$")
-        value = value.strip()
-        if not name:
-            continue
-        if filter_prefix is None or name.upper().startswith(filter_prefix.upper()):
-            variables[f"${name}"] = value
-    return variables
+# _parse_listvar is now imported as parse_listvar from src.tools
+_parse_listvar = parse_listvar
 
 
 @mcp.tool()
