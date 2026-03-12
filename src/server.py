@@ -373,6 +373,11 @@ from src.resources import register_resources  # noqa: E402
 
 register_resources(mcp)
 
+# Register MCP prompts (workflow templates)
+from src.prompts import register_prompts  # noqa: E402
+
+register_prompts(mcp)
+
 
 def _handle_errors(func):
     """Decorator that catches exceptions in MCP tools and returns JSON errors."""
