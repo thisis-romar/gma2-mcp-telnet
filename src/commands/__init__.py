@@ -152,7 +152,8 @@ from .functions import (
     list_user_var,
     list_var,
     load_show,
-    # Macro Placeholder
+    # Macro Placeholder and Condition
+    macro_condition_line,
     macro_with_input_after,
     macro_with_input_before,
     matricks_blocks,
@@ -299,7 +300,8 @@ __all__ = [
     "copy_cue",
     # Move Function Keyword
     "move",
-    # Macro Placeholder (@ Character)
+    # Macro Placeholder and Condition
+    "macro_condition_line",
     "macro_with_input_after",
     "macro_with_input_before",
     # MAtricks Command Keywords

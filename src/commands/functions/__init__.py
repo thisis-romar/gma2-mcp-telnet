@@ -111,8 +111,9 @@ from .labeling import (
     label_preset,
 )
 
-# Macro Placeholder Function Keywords
+# Macro Placeholder and Condition Function Keywords
 from .macro import (
+    macro_condition_line,
     macro_with_input_after,
     macro_with_input_before,
 )
@@ -349,7 +350,8 @@ __all__ = [
     "info_group",
     "info_cue",
     "info_preset",
-    # Macro Placeholder
+    # Macro Placeholder and Condition
+    "macro_condition_line",
     "macro_with_input_after",
     "macro_with_input_before",
     # Helping Keywords (Plus +, Minus -, And, If)
