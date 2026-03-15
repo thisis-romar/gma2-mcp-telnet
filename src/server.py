@@ -4270,6 +4270,15 @@ async def list_sequence_cues(
         - Cues for executor 1: list_sequence_cues(executor_id=1)
         - Check cue 99 on executor 1: list_sequence_cues(executor_id=1, cue_id=99)
     """
+    # Early guard: at least one identifier must be supplied.
+    if sequence_id is None and executor_id is None:
+        return json.dumps({
+            "error": "Must supply either sequence_id or executor_id.",
+            "command_sent": None,
+            "risk_tier": "SAFE_READ",
+            "blocked": True,
+        }, indent=2)
+
     client = await get_client()
     executor_probe_response: str | None = None
 
@@ -4292,14 +4301,6 @@ async def list_sequence_cues(
                 "risk_tier": "SAFE_READ",
                 "blocked": True,
             }, indent=2)
-
-    if resolved_sequence is None:
-        return json.dumps({
-            "error": "Must supply either sequence_id or executor_id.",
-            "command_sent": None,
-            "risk_tier": "SAFE_READ",
-            "blocked": True,
-        }, indent=2)
 
     if cue_id is not None:
         cmd = f"list cue {cue_id} sequence {resolved_sequence}"

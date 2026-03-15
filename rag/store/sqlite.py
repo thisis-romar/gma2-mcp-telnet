@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
+# Bump when schema.sql changes — warns if DB is newer than code.
+_EXPECTED_SCHEMA_VERSION = 1
+
 
 class RagStore:
     """SQLite-backed storage for documents and chunks."""
@@ -23,6 +26,17 @@ class RagStore:
     def __init__(self, db_path: str | Path = ":memory:") -> None:
         self._db_path = str(db_path)
         self._conn: sqlite3.Connection | None = None
+
+    # -- Context manager --------------------------------------------------
+
+    def __enter__(self) -> "RagStore":
+        self.init_db()
+        return self
+
+    def __exit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
+        self.close()
+
+    # -- Connection -------------------------------------------------------
 
     @property
     def conn(self) -> sqlite3.Connection:
@@ -37,6 +51,14 @@ class RagStore:
         self._conn.execute("PRAGMA foreign_keys=ON")
         schema = _SCHEMA_PATH.read_text(encoding="utf-8")
         self._conn.executescript(schema)
+        version = self.get_schema_version()
+        if version > _EXPECTED_SCHEMA_VERSION:
+            logger.warning(
+                "DB schema version %d is newer than expected %d — "
+                "consider updating the code",
+                version,
+                _EXPECTED_SCHEMA_VERSION,
+            )
 
     def get_schema_version(self) -> int:
         """Return the current schema version, or 0 if the table doesn't exist."""
@@ -239,11 +261,12 @@ class RagStore:
 
     def _search_by_like(self, query: str, top_k: int = 12) -> list[RagHit]:
         """LIKE-based text search fallback with occurrence counting."""
-        pattern = f"%{query}%"
+        escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
         rows = self.conn.execute(
             """
             SELECT chunk_id, path, kind, start_line, end_line, text, symbols
-            FROM chunks WHERE text LIKE ? OR symbols LIKE ?
+            FROM chunks WHERE text LIKE ? ESCAPE '\\' OR symbols LIKE ? ESCAPE '\\'
             """,
             (pattern, pattern),
         ).fetchall()

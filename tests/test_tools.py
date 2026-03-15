@@ -5174,11 +5174,13 @@ class TestListPresetPoolTool:
     )
 
     @pytest.mark.asyncio
+    @patch("src.server.get_client")
     @patch("src.server.list_destination", new_callable=AsyncMock)
     @patch("src.server.navigate", new_callable=AsyncMock)
-    async def test_overview_no_args(self, mock_navigate, mock_list_dest):
+    async def test_overview_no_args(self, mock_navigate, mock_list_dest, mock_get_client):
         from src.server import list_preset_pool
 
+        mock_get_client.return_value = MagicMock()
         mock_navigate.return_value = MagicMock()
         mock_lst = MagicMock()
         mock_lst.raw_response = self.POOL_OVERVIEW_RAW
@@ -5194,11 +5196,13 @@ class TestListPresetPoolTool:
         assert "Global PresetPool" in data["description"]
 
     @pytest.mark.asyncio
+    @patch("src.server.get_client")
     @patch("src.server.list_destination", new_callable=AsyncMock)
     @patch("src.server.navigate", new_callable=AsyncMock)
-    async def test_color_pool_by_name(self, mock_navigate, mock_list_dest):
+    async def test_color_pool_by_name(self, mock_navigate, mock_list_dest, mock_get_client):
         from src.server import list_preset_pool
 
+        mock_get_client.return_value = MagicMock()
         mock_navigate.return_value = MagicMock()
         mock_lst = MagicMock()
         mock_lst.raw_response = self.COLOR_POOL_RAW
@@ -5213,11 +5217,13 @@ class TestListPresetPoolTool:
         assert data["cd_path"] == "17.1.4"
 
     @pytest.mark.asyncio
+    @patch("src.server.get_client")
     @patch("src.server.list_destination", new_callable=AsyncMock)
     @patch("src.server.navigate", new_callable=AsyncMock)
-    async def test_color_pool_by_number(self, mock_navigate, mock_list_dest):
+    async def test_color_pool_by_number(self, mock_navigate, mock_list_dest, mock_get_client):
         from src.server import list_preset_pool
 
+        mock_get_client.return_value = MagicMock()
         mock_navigate.return_value = MagicMock()
         mock_lst = MagicMock()
         mock_lst.raw_response = self.COLOR_POOL_RAW
@@ -5425,9 +5431,10 @@ class TestCreateMAtricksLibraryTool:
         assert "DESTRUCTIVE" in data["risk_tier"]
 
     @pytest.mark.asyncio
+    @patch("pathlib.Path.write_text")
     @patch("src.server.navigate", new_callable=AsyncMock)
     @patch("src.server.get_client")
-    async def test_creates_with_embedded_colors(self, mock_get_client, mock_navigate):
+    async def test_creates_with_embedded_colors(self, mock_get_client, mock_navigate, mock_write_text):
         from src.server import create_matricks_library
 
         mock_client = MagicMock()
