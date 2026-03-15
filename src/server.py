@@ -5988,10 +5988,15 @@ def _load_taxonomy_cached() -> dict:
     from src.categorization.taxonomy import DEFAULT_TAXONOMY_PATH, load_taxonomy
 
     if not DEFAULT_TAXONOMY_PATH.exists():
-        raise FileNotFoundError(
-            "Taxonomy not generated yet. Run: "
-            "uv run python scripts/categorize_tools.py --provider zero"
-        )
+        # Auto-generate with zero-vector provider (fast, no API key needed).
+        import importlib.util
+        from pathlib import Path
+
+        _script_path = Path(__file__).resolve().parent.parent / "scripts" / "categorize_tools.py"
+        spec = importlib.util.spec_from_file_location("categorize_tools", _script_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod.run(provider_name="zero", server_path=str(Path(__file__).resolve()))
     _taxonomy_cache = load_taxonomy()
     return _taxonomy_cache
 
@@ -6048,11 +6053,14 @@ async def recluster_tools(
     Returns:
         str: JSON summary with categories, silhouette score, and tool assignments.
     """
-    import importlib
+    import importlib.util
     from pathlib import Path
 
-    # Import lazily to avoid circular imports at module load time.
-    mod = importlib.import_module("scripts.categorize_tools")
+    # Import via file path to avoid CWD dependency.
+    _script_path = Path(__file__).resolve().parent.parent / "scripts" / "categorize_tools.py"
+    spec = importlib.util.spec_from_file_location("categorize_tools", _script_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
     server_path = str(Path(__file__).resolve())
 
     result = mod.run(
@@ -6085,7 +6093,7 @@ async def get_similar_tools(tool_name: str, top_n: int = 5) -> str:
     """
     Find the most similar MCP tools to a given tool (SAFE_READ).
 
-    Uses Euclidean distance in the combined feature space (structural +
+    Uses cosine similarity in the combined feature space (structural +
     embedding) from the last clustering run.
 
     Args:
@@ -6093,10 +6101,10 @@ async def get_similar_tools(tool_name: str, top_n: int = 5) -> str:
         top_n: Number of similar tools to return (default 5).
 
     Returns:
-        str: JSON array of similar tools ranked by distance, with category.
+        str: JSON array of similar tools ranked by similarity, with category.
     """
 
-    from src.categorization.clustering import euclidean_distance
+    from src.categorization.clustering import cosine_similarity
     from src.categorization.taxonomy import get_feature_matrix
 
     taxonomy = _load_taxonomy_cached()
@@ -6111,16 +6119,16 @@ async def get_similar_tools(tool_name: str, top_n: int = 5) -> str:
     idx = names.index(tool_name)
     ref_vec = matrix[idx]
 
-    # Compute distances to all other tools
-    distances: list[tuple[str, float]] = []
+    # Compute cosine similarities to all other tools
+    similarities: list[tuple[str, float]] = []
     for i, name in enumerate(names):
         if i == idx:
             continue
-        dist = euclidean_distance(ref_vec, matrix[i])
-        distances.append((name, dist))
+        sim = cosine_similarity(ref_vec, matrix[i])
+        similarities.append((name, sim))
 
-    distances.sort(key=lambda x: x[1])
-    top = distances[:top_n]
+    similarities.sort(key=lambda x: -x[1])  # descending
+    top = similarities[:top_n]
 
     # Find categories for each tool
     categories = taxonomy.get("categories", {})
@@ -6129,16 +6137,14 @@ async def get_similar_tools(tool_name: str, top_n: int = 5) -> str:
         for t in cat_data.get("tools", []):
             tool_to_category[t["name"]] = cat_name
 
-    max_dist = top[-1][1] if top else 1.0
     return json.dumps(
         [
             {
                 "name": name,
-                "similarity": round(1.0 - (dist / max_dist) if max_dist > 0 else 1.0, 4),
-                "distance": round(dist, 6),
+                "similarity": round(sim, 4),
                 "category": tool_to_category.get(name, "unknown"),
             }
-            for name, dist in top
+            for name, sim in top
         ],
         indent=2,
     )

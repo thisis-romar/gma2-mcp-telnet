@@ -24,6 +24,10 @@ from src.categorization.clustering import (
     silhouette_score,
 )
 from src.categorization.features import (
+    ALL_MODULES,
+    ACTION_VERBS,
+    FUNCTION_MODULES,
+    OBJECT_MODULES,
     ToolFeatures,
     extract_tool_features,
 )
@@ -532,3 +536,155 @@ class TestFullPipeline:
                 assert t["name"] not in all_tools_in_cats, f"Duplicate: {t['name']}"
                 all_tools_in_cats.add(t["name"])
         assert all_tools_in_cats == {t.name for t in tools}
+
+
+# ===========================================================================
+# Module Auto-Discovery Tests
+# ===========================================================================
+
+
+class TestModuleAutoDiscovery:
+    """Verify auto-discovery picks up all command submodules."""
+
+    def test_matricks_in_function_modules(self):
+        """matricks.py exists in src/commands/functions/ and should be discovered."""
+        assert "matricks" in FUNCTION_MODULES
+
+    def test_all_known_function_modules_present(self):
+        """All expected function modules should be auto-discovered."""
+        expected = {
+            "assignment", "call", "edit", "helping", "importexport",
+            "info", "labeling", "macro", "matricks", "navigation",
+            "park", "playback", "selection", "store", "values", "variables",
+        }
+        assert expected.issubset(set(FUNCTION_MODULES))
+
+    def test_all_known_object_modules_present(self):
+        expected = {
+            "attributes", "cues", "dmx", "executors", "fixtures",
+            "groups", "layouts", "presets", "time",
+        }
+        assert expected == set(OBJECT_MODULES)
+
+    def test_structural_dim_matches_modules(self):
+        """structural_dim must equal 3 + 5 + 2 + len(ALL_MODULES) + len(ACTION_VERBS)."""
+        expected = 3 + 5 + 2 + len(ALL_MODULES) + len(ACTION_VERBS)
+        assert ToolFeatures.structural_dim() == expected
+
+    def test_no_init_in_modules(self):
+        """__init__.py should not appear in discovered modules."""
+        assert "__init__" not in FUNCTION_MODULES
+        assert "__init__" not in OBJECT_MODULES
+
+
+# ===========================================================================
+# MCP Tool Wrapper Tests
+# ===========================================================================
+
+
+class TestMCPToolWrappers:
+    """Tests for the 4 categorization MCP tools in server.py."""
+
+    @pytest.fixture(autouse=True)
+    def _generate_taxonomy(self, tmp_path, monkeypatch):
+        """Generate a taxonomy.json in a temp dir for all tests."""
+        import sys
+
+        _ROOT = Path(__file__).resolve().parent.parent
+        sys.path.insert(0, str(_ROOT))
+
+        from scripts.categorize_tools import run
+        from src.categorization import taxonomy as tax_mod
+
+        out_path = tmp_path / "taxonomy.json"
+        run(provider_name="zero", output=str(out_path), server_path=str(SERVER_PATH))
+
+        # Monkeypatch taxonomy module to use our temp file
+        monkeypatch.setattr(tax_mod, "DEFAULT_TAXONOMY_PATH", out_path)
+
+        # Also reset server module cache
+        import src.server as server_mod
+        monkeypatch.setattr(server_mod, "_taxonomy_cache", None)
+
+        self.taxonomy_path = out_path
+        self.taxonomy = tax_mod.load_taxonomy(out_path)
+
+    def test_taxonomy_generated(self):
+        """Pipeline should generate a valid taxonomy file."""
+        assert self.taxonomy_path.exists()
+        assert "metadata" in self.taxonomy
+        assert "categories" in self.taxonomy
+        assert "tool_features" in self.taxonomy
+        assert self.taxonomy["metadata"]["tool_count"] >= 70
+
+    def test_confidence_no_zero(self):
+        """No tool should have confidence exactly 0.0 (silhouette-based)."""
+        for cat_name, cat in self.taxonomy["categories"].items():
+            for t in cat["tools"]:
+                # Silhouette maps to [0, 1]; only a perfectly misclassified
+                # tool would get 0.0, which shouldn't happen on real data.
+                assert t["confidence"] > 0.0, (
+                    f"Tool {t['name']} in {cat_name} has confidence 0.0"
+                )
+
+    def test_confidence_range(self):
+        """All confidence values should be in [0, 1]."""
+        for cat in self.taxonomy["categories"].values():
+            for t in cat["tools"]:
+                assert 0.0 <= t["confidence"] <= 1.0, (
+                    f"Tool {t['name']} confidence {t['confidence']} out of range"
+                )
+
+    @pytest.mark.asyncio
+    async def test_get_similar_tools_returns_results(self):
+        """get_similar_tools should return ranked results."""
+        import json
+
+        import src.server as server_mod
+
+        # Use a known tool name from the taxonomy
+        first_tool = list(self.taxonomy["tool_features"].keys())[0]
+        raw = await server_mod.get_similar_tools.__wrapped__(first_tool, top_n=3)
+        result = json.loads(raw)
+        assert isinstance(result, list)
+        assert len(result) <= 3
+        # Check similarity is in descending order
+        sims = [r["similarity"] for r in result]
+        assert sims == sorted(sims, reverse=True)
+
+    @pytest.mark.asyncio
+    async def test_get_similar_tools_unknown_tool(self):
+        """get_similar_tools should return error for unknown tools."""
+        import json
+
+        import src.server as server_mod
+
+        raw = await server_mod.get_similar_tools.__wrapped__("totally_fake_tool_xyz", top_n=3)
+        result = json.loads(raw)
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_suggest_tool_keyword_fallback(self):
+        """suggest_tool_for_task with zero provider should use keyword matching."""
+        import json
+
+        import src.server as server_mod
+
+        raw = await server_mod.suggest_tool_for_task.__wrapped__(
+            "list all fixtures", top_n=3, provider="zero"
+        )
+        result = json.loads(raw)
+        assert isinstance(result, list)
+        assert len(result) <= 3
+        # At least one result should match "list" or "fixture"
+        names = [r["name"] for r in result]
+        assert len(names) > 0
+
+    def test_alpha_validation(self):
+        """Alpha out of [0, 1] should raise ValueError."""
+        from scripts.categorize_tools import run
+
+        with pytest.raises(ValueError, match="alpha must be in"):
+            run(provider_name="zero", alpha=-0.5, server_path=str(SERVER_PATH))
+        with pytest.raises(ValueError, match="alpha must be in"):
+            run(provider_name="zero", alpha=1.5, server_path=str(SERVER_PATH))

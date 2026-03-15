@@ -11,37 +11,21 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+
+def _discover_modules(subdir: str) -> list[str]:
+    """Auto-discover command submodules from ``src/commands/{subdir}/``."""
+    pkg_dir = Path(__file__).resolve().parent.parent / "commands" / subdir
+    if not pkg_dir.is_dir():
+        return []
+    return sorted(
+        p.stem for p in pkg_dir.glob("*.py") if p.stem != "__init__"
+    )
+
+
 # Command builder submodule names used for multi-hot encoding.
-FUNCTION_MODULES = [
-    "assignment",
-    "call",
-    "edit",
-    "helping",
-    "importexport",
-    "info",
-    "labeling",
-    "macro",
-    "navigation",
-    "park",
-    "playback",
-    "selection",
-    "store",
-    "values",
-    "variables",
-]
-
-OBJECT_MODULES = [
-    "attributes",
-    "cues",
-    "dmx",
-    "executors",
-    "fixtures",
-    "groups",
-    "layouts",
-    "presets",
-    "time",
-]
-
+# Auto-discovered from src/commands/{functions,objects}/ to stay in sync.
+FUNCTION_MODULES = _discover_modules("functions")
+OBJECT_MODULES = _discover_modules("objects")
 ALL_MODULES = FUNCTION_MODULES + OBJECT_MODULES
 
 # MA2 action verbs looked-up in docstring / body for multi-hot.
@@ -197,6 +181,8 @@ def _infer_submodule(builder_name: str) -> str:
         return "call"
     if name.startswith("macro"):
         return "macro"
+    if name.startswith("matricks"):
+        return "matricks"
     if name.startswith(("blackout", "release", "flash", "on_", "off_", "toggle", "solo", "temp")):
         return "playback"
     if name.startswith(("page_", "add_to_selection", "remove_from_selection", "if_condition", "condition")):

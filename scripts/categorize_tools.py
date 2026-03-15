@@ -27,6 +27,7 @@ from src.categorization.clustering import (
     find_optimal_k,
     kmeans,
     normalize_minmax,
+    silhouette_samples,
     silhouette_score,
 )
 from src.categorization.features import ToolFeatures, extract_tool_features
@@ -58,6 +59,8 @@ def run(
     server_path: str | None = None,
 ) -> dict:
     """Execute the full categorization pipeline and return the taxonomy dict."""
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError(f"alpha must be in [0, 1], got {alpha}")
     server_file = Path(server_path) if server_path else _ROOT / "src" / "server.py"
     out_path = Path(output) if output else DEFAULT_TAXONOMY_PATH
 
@@ -101,6 +104,9 @@ def run(
     # --- Step 6: Build & save taxonomy ---
     print(f"[6/6] Saving taxonomy to {out_path} ...")
 
+    # Per-sample silhouette scores → principled per-tool confidence
+    sil_values = silhouette_samples(combined, labels)  # shape (n,)
+
     metadata = {
         "tool_count": len(tools),
         "k": best_k,
@@ -118,12 +124,6 @@ def run(
         cluster_tools = [
             (t, i) for i, (t, l) in enumerate(zip(tools, labels)) if int(l) == cid
         ]
-        # Confidence = 1 - (distance to centroid / max distance in cluster)
-        cluster_indices = [i for _, i in cluster_tools]
-        cluster_vecs = combined[cluster_indices]
-        centroid = centroids[cid]
-        dists = np.sqrt(np.sum((cluster_vecs - centroid) ** 2, axis=1))
-        max_dist = dists.max() if dists.max() > 0 else 1.0
 
         dom = dominant_features([t for t, _ in cluster_tools])
         categories[label] = {
@@ -133,9 +133,10 @@ def run(
             "tools": [
                 {
                     "name": t.name,
-                    "confidence": round(float(1.0 - d / max_dist), 4) if max_dist > 0 else 1.0,
+                    # Map silhouette [-1, 1] → confidence [0, 1]
+                    "confidence": round(float((sil_values[orig_idx] + 1.0) / 2.0), 4),
                 }
-                for (t, _), d in zip(cluster_tools, dists)
+                for t, orig_idx in cluster_tools
             ],
         }
 
