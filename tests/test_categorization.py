@@ -688,3 +688,131 @@ class TestMCPToolWrappers:
             run(provider_name="zero", alpha=-0.5, server_path=str(SERVER_PATH))
         with pytest.raises(ValueError, match="alpha must be in"):
             run(provider_name="zero", alpha=1.5, server_path=str(SERVER_PATH))
+
+
+# ===========================================================================
+# Audit Tests — clustering quality, stability, and correctness
+# ===========================================================================
+
+
+class TestClusteringAudit:
+    """Audit tests verifying clustering quality and robustness."""
+
+    def _run_pipeline(self, seed=42, k_override=None):
+        """Run the full pipeline and return (tools, combined, labels, sil)."""
+        tools = extract_tool_features(str(SERVER_PATH))
+        structural = np.array(
+            [t.to_structural_vector() for t in tools], dtype=np.float64,
+        )
+        structural_norm = normalize_minmax(structural)
+        embeddings = np.zeros((len(tools), 384), dtype=np.float64)
+        combined = combine_features(structural_norm, embeddings, alpha=0.4)
+
+        if k_override:
+            labels, _, _ = kmeans(combined, k_override, seed=seed)
+        else:
+            best_k, _ = find_optimal_k(combined, seed=seed)
+            labels, _, _ = kmeans(combined, best_k, seed=seed)
+
+        sil = silhouette_score(combined, labels)
+        return tools, combined, labels, sil
+
+    def test_silhouette_above_random(self):
+        """Global silhouette should be meaningfully above zero (random baseline)."""
+        _, _, _, sil = self._run_pipeline()
+        assert sil > 0.05, (
+            f"Silhouette {sil:.4f} is near-random; clustering is not meaningful"
+        )
+
+    def test_no_mega_cluster(self):
+        """No single cluster should contain >50% of all tools."""
+        tools, _, labels, _ = self._run_pipeline()
+        n = len(tools)
+        unique, counts = np.unique(labels, return_counts=True)
+        for cid, count in zip(unique, counts):
+            assert count <= n * 0.5, (
+                f"Cluster {cid} has {count}/{n} tools (>{50}%) — mega-cluster"
+            )
+
+    def test_few_small_clusters(self):
+        """At most 1 cluster may have fewer than 3 tools (outlier tolerance)."""
+        _, _, labels, _ = self._run_pipeline()
+        unique, counts = np.unique(labels, return_counts=True)
+        small = sum(1 for c in counts if c < 3)
+        assert small <= 1, (
+            f"{small} clusters have <3 tools — too many near-empty clusters"
+        )
+
+    def test_multi_restart_stability(self):
+        """Multiple restarts should improve or match single-restart inertia."""
+        tools = extract_tool_features(str(SERVER_PATH))
+        structural = np.array(
+            [t.to_structural_vector() for t in tools], dtype=np.float64,
+        )
+        structural_norm = normalize_minmax(structural)
+        embeddings = np.zeros((len(tools), 384), dtype=np.float64)
+        combined = combine_features(structural_norm, embeddings, alpha=0.4)
+
+        _, _, inertia_multi = kmeans(combined, 5, seed=42, n_init=10)
+        _, _, inertia_single = kmeans(combined, 5, seed=42, n_init=1)
+
+        assert inertia_multi <= inertia_single + 1e-6, (
+            f"Multi-restart inertia ({inertia_multi:.4f}) should be <= "
+            f"single-restart ({inertia_single:.4f})"
+        )
+
+    def test_destructive_tools_mostly_not_in_read_cluster(self):
+        """Most DESTRUCTIVE tools should not be in read-only categories.
+
+        Unsupervised clustering may place a few DESTRUCTIVE tools in
+        read-oriented clusters when they share structural features.
+        We tolerate up to 20% misassignment.
+        """
+        tools, _, labels, _ = self._run_pipeline()
+        cluster_labels = generate_labels(tools, labels)
+
+        destructive = [(t, int(lbl)) for t, lbl in zip(tools, labels)
+                       if t.risk_tier == "DESTRUCTIVE"]
+        misassigned = [
+            t.name for t, cid in destructive
+            if cluster_labels[cid] == "Inspection & Queries"
+        ]
+        ratio = len(misassigned) / len(destructive) if destructive else 0.0
+        assert ratio <= 0.2, (
+            f"{len(misassigned)}/{len(destructive)} ({ratio:.0%}) DESTRUCTIVE tools "
+            f"in read-only clusters: {misassigned}"
+        )
+
+    def test_verb_detection_no_false_matches(self):
+        """Verb detection should not match substrings like 'unclear' → 'clear'."""
+        from src.categorization.features import _detect_action_verbs
+
+        # "unclear" should NOT match "clear"
+        verbs = _detect_action_verbs("This is unclear behavior", "pass")
+        assert "clear" not in verbs, "'unclear' false-matched as 'clear'"
+
+        # "information" should NOT match "info"
+        verbs = _detect_action_verbs("Provide information about", "pass")
+        assert "info" not in verbs, "'information' false-matched as 'info'"
+
+        # Actual verb usage should still match
+        verbs = _detect_action_verbs("Clear the programmer", "clear()")
+        assert "clear" in verbs, "'clear' should match when used as a word"
+
+    def test_per_sample_silhouette_no_extreme_negatives(self):
+        """No tool should have silhouette < -0.5 (severely misassigned)."""
+        _, combined, labels, _ = self._run_pipeline()
+        samples = silhouette_samples(combined, labels)
+        worst = float(samples.min())
+        assert worst > -0.5, (
+            f"Worst per-sample silhouette is {worst:.4f} — severely misassigned tool"
+        )
+
+    def test_label_uniqueness_in_pipeline(self):
+        """All category labels in a real pipeline run should be unique."""
+        tools, _, labels, _ = self._run_pipeline()
+        cluster_labels = generate_labels(tools, labels)
+        label_values = list(cluster_labels.values())
+        assert len(label_values) == len(set(label_values)), (
+            f"Duplicate labels: {label_values}"
+        )

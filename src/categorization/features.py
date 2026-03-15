@@ -223,7 +223,9 @@ def _detect_risk_tier(docstring: str, has_destructive_param: bool) -> str:
 
 def _detect_action_verbs(docstring: str, body_source: str) -> list[str]:
     combined = (docstring + " " + body_source).lower()
-    return [v for v in ACTION_VERBS if v in combined]
+    # Use word-boundary matching to avoid false positives
+    # (e.g. "clear" matching "unclear", "nuclear")
+    return [v for v in ACTION_VERBS if re.search(rf"\b{re.escape(v)}\b", combined)]
 
 
 def _detect_command_modules(
