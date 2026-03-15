@@ -96,9 +96,14 @@ class ToolFeatures:
         for mod in ALL_MODULES:
             vec.append(1.0 if mod in self.command_modules else 0.0)
 
-        # Action verb multi-hot (20 dims)
-        for verb in ACTION_VERBS:
-            vec.append(1.0 if verb in self.action_verbs else 0.0)
+        # Action verb multi-hot (20 dims) — L2-normalised per tool so that
+        # tools with many verbs (e.g. send_raw_command with 9) don't dominate
+        # distance calculations over tools with 1-2 verbs.
+        verb_vec = [1.0 if verb in self.action_verbs else 0.0 for verb in ACTION_VERBS]
+        norm = sum(v * v for v in verb_vec) ** 0.5
+        if norm > 0:
+            verb_vec = [v / norm for v in verb_vec]
+        vec.extend(verb_vec)
 
         return vec
 

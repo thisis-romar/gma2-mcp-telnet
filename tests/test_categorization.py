@@ -15,6 +15,7 @@ import pytest
 from src.categorization.clustering import (
     combine_features,
     cosine_similarity,
+    drop_zero_variance,
     euclidean_distance,
     find_optimal_k,
     kmeans,
@@ -704,6 +705,7 @@ class TestClusteringAudit:
         structural = np.array(
             [t.to_structural_vector() for t in tools], dtype=np.float64,
         )
+        structural, _ = drop_zero_variance(structural)
         structural_norm = normalize_minmax(structural)
         embeddings = np.zeros((len(tools), 384), dtype=np.float64)
         combined = combine_features(structural_norm, embeddings, alpha=0.4)
@@ -749,6 +751,7 @@ class TestClusteringAudit:
         structural = np.array(
             [t.to_structural_vector() for t in tools], dtype=np.float64,
         )
+        structural, _ = drop_zero_variance(structural)
         structural_norm = normalize_minmax(structural)
         embeddings = np.zeros((len(tools), 384), dtype=np.float64)
         combined = combine_features(structural_norm, embeddings, alpha=0.4)
@@ -816,3 +819,55 @@ class TestClusteringAudit:
         assert len(label_values) == len(set(label_values)), (
             f"Duplicate labels: {label_values}"
         )
+
+    def test_verb_normalization(self):
+        """Verb sub-vector should be L2-normalised (unit norm when verbs present)."""
+        t = ToolFeatures(
+            name="test_tool",
+            action_verbs=["list", "info", "store", "delete"],
+        )
+        vec = t.to_structural_vector()
+        dim = ToolFeatures.structural_dim()
+        # Verb dims are the last len(ACTION_VERBS) entries
+        verb_start = dim - len(ACTION_VERBS)
+        verb_vec = np.array(vec[verb_start:])
+        l2_norm = float(np.linalg.norm(verb_vec))
+        assert l2_norm == pytest.approx(1.0, abs=1e-6), (
+            f"Verb sub-vector L2 norm should be 1.0, got {l2_norm}"
+        )
+
+    def test_verb_normalization_no_verbs(self):
+        """Tools with no verbs should have zero verb sub-vector."""
+        t = ToolFeatures(name="test_tool", action_verbs=[])
+        vec = t.to_structural_vector()
+        dim = ToolFeatures.structural_dim()
+        verb_start = dim - len(ACTION_VERBS)
+        verb_vec = vec[verb_start:]
+        assert all(v == 0.0 for v in verb_vec)
+
+    def test_zero_variance_columns_dropped(self):
+        """drop_zero_variance should remove constant columns."""
+        X = np.array([
+            [1, 5, 0, 3],
+            [2, 5, 0, 4],
+            [3, 5, 0, 5],
+        ], dtype=np.float64)
+        filtered, mask = drop_zero_variance(X)
+        # Columns 1 and 2 are constant → dropped
+        assert filtered.shape == (3, 2), f"Expected (3, 2), got {filtered.shape}"
+        assert mask.tolist() == [True, False, False, True]
+        np.testing.assert_array_equal(filtered[:, 0], [1, 2, 3])
+        np.testing.assert_array_equal(filtered[:, 1], [3, 4, 5])
+
+    def test_zero_variance_on_real_features(self):
+        """Real tool features should have some zero-variance dims to drop."""
+        tools = extract_tool_features(str(SERVER_PATH))
+        structural = np.array(
+            [t.to_structural_vector() for t in tools], dtype=np.float64,
+        )
+        filtered, mask = drop_zero_variance(structural)
+        dropped = structural.shape[1] - filtered.shape[1]
+        assert dropped >= 5, (
+            f"Expected ≥5 zero-variance dims dropped, only dropped {dropped}"
+        )
+        assert filtered.shape[1] < structural.shape[1]

@@ -255,6 +255,22 @@ def find_optimal_k(
 # ---------------------------------------------------------------------------
 
 
+def drop_zero_variance(
+    X: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.bool_]]:
+    """Remove columns with zero variance (constant across all samples).
+
+    Returns
+    -------
+    filtered : (n, d') array with only non-constant columns
+    kept_mask : (d,) boolean mask of which original columns were kept
+    """
+    X = np.asarray(X, dtype=np.float64)
+    variances = X.var(axis=0)
+    mask = variances > 0
+    return X[:, mask], mask
+
+
 def normalize_minmax(X: NDArray[np.float64]) -> NDArray[np.float64]:
     """Min-max normalise each column to [0, 1]."""
     X = np.asarray(X, dtype=np.float64)

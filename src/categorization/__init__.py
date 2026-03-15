@@ -4,7 +4,12 @@ Extracts structural + semantic features from MCP tool definitions,
 clusters them via K-Means, and produces a human-readable taxonomy.
 """
 
-from src.categorization.clustering import find_optimal_k, kmeans, silhouette_score
+from src.categorization.clustering import (
+    drop_zero_variance,
+    find_optimal_k,
+    kmeans,
+    silhouette_score,
+)
 from src.categorization.features import ToolFeatures, extract_tool_features
 from src.categorization.labeling import generate_labels
 from src.categorization.taxonomy import (
@@ -16,6 +21,7 @@ from src.categorization.taxonomy import (
 
 __all__ = [
     "ToolFeatures",
+    "drop_zero_variance",
     "extract_tool_features",
     "find_optimal_k",
     "generate_labels",

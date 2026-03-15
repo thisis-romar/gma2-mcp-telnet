@@ -24,6 +24,7 @@ sys.path.insert(0, str(_ROOT))
 
 from src.categorization.clustering import (
     combine_features,
+    drop_zero_variance,
     find_optimal_k,
     kmeans,
     normalize_minmax,
@@ -72,6 +73,9 @@ def run(
     # --- Step 2: Build structural matrix ---
     print("[2/6] Building structural feature matrix ...")
     structural = np.array([t.to_structural_vector() for t in tools], dtype=np.float64)
+    raw_dims = structural.shape[1]
+    structural, _kept_mask = drop_zero_variance(structural)
+    print(f"       {raw_dims} dims → {structural.shape[1]} after dropping zero-variance columns")
     structural_norm = normalize_minmax(structural)
 
     # --- Step 3: Embed docstrings ---
