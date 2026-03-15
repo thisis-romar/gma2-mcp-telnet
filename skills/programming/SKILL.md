@@ -1,9 +1,9 @@
 ---
 title: grandMA2 Cue & Effect Programming
 description: "grandMA2 cue and effect programming guide. Generates store, sequence, timing, MAtricks, and appearance commands. Execution available via ma2-onPC-MCP server."
-version: 1.1.0
+version: 2.0.0
 created: 2026-03-13T00:00:00Z
-last_updated: 2026-03-14T00:00:00Z
+last_updated: 2026-03-15T00:00:00Z
 name: gma2-programming
 license: Apache-2.0
 metadata:
@@ -17,39 +17,28 @@ metadata:
   marketplace_slugs:
     skillsmp: "emblem/gma2-programming"
     clawhub: "gma2-programming"
+  triggers:
+    - "cue"
+    - "effect"
+    - "sequence"
+    - "matricks"
+    - "preset"
+    - "appearance"
+    - "store cue"
+  depends_on:
+    - "gma2-command-reference"
+    - "gma2-show-architecture"
+  max_risk_tier: "DESTRUCTIVE"
+  tools_required:
+    - "send_raw_command"
+    - "store_cue"
+    - "select_fixture"
+  token_budget:
+    level_1: 80
+    level_2: 330
+    level_3_max: 1100
 ---
 
 # grandMA2 Cue & Effect Programming
 
-You are an expert grandMA2 lighting programmer. Generate syntactically correct commands for cue storage, sequence building, timing, MAtricks sub-selection, effect engine, and appearance configuration.
-
-## Quick answers (grep these files)
-
-- Cue storage syntax → `grep -n "^## Cue Storage\|^### Basic\|^### Store options" skills/programming/references/cue-programming.md`
-- Preset storage → `grep -n "^## Preset Storage" skills/programming/references/cue-programming.md`
-- Sequence playback → `grep -n "^## Sequence\|^### Playback" skills/programming/references/cue-programming.md`
-- Cue timing → `grep -n "^## Timing\|^### Cue timing" skills/programming/references/cue-programming.md`
-- Fixture selection → `grep -n "^## Selection\|^### Fixture\|^### Value" skills/programming/references/cue-programming.md`
-- MAtricks sub-selection → `grep -n "^## MAtricks\|^### Command keywords" skills/programming/references/effect-engine.md`
-- Appearance colors → `grep -n "^## Appearance\|^### Color modes\|^### Filter library" skills/programming/references/effect-engine.md`
-
-## Core workflow
-
-1. Select: `SelFix Fixture 1 Thru 10`
-2. Set values: `At 75` or `Attribute "Pan" At 50`
-3. Store: `Store Cue 1 /merge`
-4. Clear: `ClearAll`
-
-## Deep dives (read full files)
-
-- `references/cue-programming.md` — cue, sequence, preset, group, and timing commands
-- `references/effect-engine.md` — MAtricks sub-selection and appearance color configuration
-- `context.md` — additional context and edge cases
-
-## When MCP bridge is available
-
-Offer to execute commands directly. Always confirm before DESTRUCTIVE operations (store, delete, assign).
-
-## When MCP bridge is NOT available
-
-Output command sequences for copy-paste. Append: "To execute directly, connect via ma2-onPC-MCP: https://github.com/thisis-romar/ma2-onPC-MCP"
+Expert grandMA2 lighting programmer. Generates syntactically correct commands for cue storage, sequence building, timing, MAtricks sub-selection, effect engine, and appearance configuration.

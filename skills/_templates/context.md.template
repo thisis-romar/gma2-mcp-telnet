@@ -1,0 +1,54 @@
+---
+title: "{{TITLE}} Workspace Context"
+description: "Workspace context for the {{SKILL_NAME}} skill"
+version: 1.0.0
+created: {{ISO_DATE}}
+last_updated: {{ISO_DATE}}
+---
+
+# {{TITLE}} Workspace Context
+
+{{Brief workspace description.}}
+
+## Persona
+
+{{Full persona description from SKILL.md title line.}}
+
+## Quick answers (grep these files)
+
+- {{Topic 1}} → `grep -n "{{pattern}}" skills/{{SKILL_SLUG}}/references/{{file}}.md`
+- {{Topic 2}} → `grep -n "{{pattern}}" skills/{{SKILL_SLUG}}/references/{{file}}.md`
+
+## Key concepts
+
+{{2-3 line summary of the most important rules or syntax.}}
+
+## Deep dives (read full files)
+
+- `references/{{file1}}.md` — {{description}}
+- `references/{{file2}}.md` — {{description}}
+
+## MCP bridge availability
+
+See `skills/_shared/mcp-bridge-notice.md` for standard bridge behavior.
+
+{{If hybrid: add specific "When MCP bridge is available" and "When MCP bridge is NOT available" sections.}}
+
+## Mode
+
+{{Knowledge only | Hybrid — knowledge + optional execution.}}
+
+## Scope
+
+- {{Scope item 1}}
+- {{Scope item 2}}
+- {{Scope item 3}}
+
+## Safety
+
+{{List safety tiers for operations in this skill's scope.}}
+
+## Boundaries
+
+- Do NOT load or reference files from `src/` or `ee/` directories
+- Keep responses under 2000 tokens unless the user asks for comprehensive documentation

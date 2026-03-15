@@ -1,9 +1,9 @@
 ---
 title: Project Rules
 description: Agent conventions, architecture quick-reference, and development rules for ma2-onPC-MCP
-version: 3.10.0
+version: 3.11.0
 created: 2026-03-01T00:00:00Z
-last_updated: 2026-03-14T00:00:00Z
+last_updated: 2026-03-15T00:00:00Z
 ---
 
 # Project Rules
@@ -14,7 +14,7 @@ last_updated: 2026-03-14T00:00:00Z
 |-----------|---------------|--------------|
 | Learn GMA2 syntax | skills/command-reference/ | None (knowledge only) |
 | Understand show structure | skills/show-architecture/ | None (knowledge only) |
-| Network configuration | skills/networking/ | None (knowledge only) |
+| Network configuration | skills/networking/ | MCP bridge (if available) |
 | Write macros | skills/macros/ | MCP bridge (if available) |
 | Program cues/effects | skills/programming/ | MCP bridge (if available) |
 | Write Lua scripts | skills/lua-scripting/ | MCP bridge (if available) |
@@ -25,14 +25,17 @@ last_updated: 2026-03-14T00:00:00Z
 - MCP tools available → route to src/ (full execution)
 - If EMBLEM_ENTERPRISE env set → route to ee/ (enterprise)
 
-**Token budget:** Load ONLY the workspace context for the current task.
+**Trigger-based routing:** Each SKILL.md declares `metadata.triggers` — keyword lists for automated routing. When a user query matches triggers, load that skill's workspace. For multi-skill queries, check `skills/INDEX.md` "Common Compositions" section.
+
+**Token budget:** Load ONLY the workspace context for the current task. See `metadata.token_budget` in each SKILL.md for per-level costs.
 
 **Retrieval protocol (3 layers):**
-1. **Router** — Read the relevant `SKILL.md` first (~50 lines). It contains grep patterns for quick answers.
-2. **Grep index** — For cross-skill lookups, grep `skills/INDEX.md` for the topic to find the right file and section.
-3. **Deep dive** — Only read full reference files (`references/*.md`) when grep results are insufficient.
+1. **Router** — Read the relevant `SKILL.md` first (~25 lines, metadata only, ~80 tokens). Check `metadata.depends_on` for cross-skill dependencies.
+2. **Context** — Read `context.md` (~300 tokens) for grep patterns, quick answers, mode, and scope.
+3. **Grep index** — For cross-skill lookups, grep `skills/INDEX.md` for the topic to find the right file and section.
+4. **Deep dive** — Only read full reference files (`references/*.md`) when grep results are insufficient.
 
-Always try grep before loading a full file. This keeps context usage minimal.
+Always try grep before loading a full file. This keeps context usage minimal. See `skills/SCHEMA.md` for the complete metadata specification.
 
 ---
 

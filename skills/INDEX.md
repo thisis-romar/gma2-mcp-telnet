@@ -3,7 +3,7 @@ title: Skills Grep Index
 description: Flat lookup table mapping common topics to file paths and grep patterns for fast retrieval
 version: 1.0.0
 created: 2026-03-14T00:00:00Z
-last_updated: 2026-03-14T00:00:00Z
+last_updated: 2026-03-15T00:00:00Z
 ---
 
 # Skills Grep Index
@@ -27,8 +27,8 @@ Use this index to locate specific topics quickly. Run the grep pattern to jump t
 | Variables (SetVar/AddVar) | `skills/command-reference/references/syntax-guide.md` | `^## Variables` |
 | Navigation (cd) | `skills/command-reference/references/syntax-guide.md` | `^## Navigation` |
 | PresetType IDs | `skills/command-reference/references/syntax-guide.md` | `^## PresetType` |
-| Name quoting (special chars) | `skills/command-reference/SKILL.md` | `special characters` |
-| Wildcard workflow | `skills/command-reference/SKILL.md` | `wildcard` |
+| Name quoting (special chars) | `skills/command-reference/context.md` | `special characters` |
+| Wildcard workflow | `skills/command-reference/context.md` | `wildcard` |
 
 ## Keyword Classification
 
@@ -121,3 +121,16 @@ Use this index to locate specific topics quickly. Run the grep pattern to jump t
 | Timer-based effect | `skills/lua-scripting/references/plugin-patterns.md` | `^## Pattern 4` |
 | Show data inspector | `skills/lua-scripting/references/plugin-patterns.md` | `^## Pattern 5` |
 | Variable bridge (Lua↔Macro) | `skills/lua-scripting/references/plugin-patterns.md` | `^## Pattern 6` |
+
+## Common Compositions
+
+Multi-skill workflows where an agent needs knowledge from more than one skill simultaneously. Load all listed skills' context.md files.
+
+| Workflow | Skills needed | Example query |
+|----------|--------------|---------------|
+| Macro with cue storage | macros + programming + command-reference | "Create macro that stores 10 cues with timing" |
+| Art-Net setup + programming | networking + programming | "Configure Art-Net universes then store cue" |
+| Lua plugin with show data | lua-scripting + show-architecture | "Write plugin to iterate fixtures and read properties" |
+| Lua + macro variable bridge | lua-scripting + macros | "Pass data between Lua plugin and macro via variables" |
+| Sequence with MAtricks | programming + command-reference | "Build sub-selection chase using interleave + groups" |
+| Network-safe show creation | networking + command-reference | "Create new show preserving connectivity" |
