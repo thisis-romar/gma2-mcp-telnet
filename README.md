@@ -1,9 +1,9 @@
 ---
 title: GMA2 MCP
 description: MCP server for controlling grandMA2 lighting consoles via Telnet
-version: 3.3.0
+version: 3.4.0
 created: 2025-02-27T00:00:00Z
-last_updated: 2026-03-15T00:00:00Z
+last_updated: 2026-03-15T23:30:00Z
 ---
 
 <div align="center">
@@ -13,7 +13,7 @@ last_updated: 2026-03-15T00:00:00Z
 [![Tests](https://github.com/thisis-romar/ma2-onPC-MCP/actions/workflows/test.yml/badge.svg)](https://github.com/thisis-romar/ma2-onPC-MCP/actions/workflows/test.yml)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Tools](https://img.shields.io/badge/MCP_tools-90-brightgreen)
-![Tests](https://img.shields.io/badge/tests-1405-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1437-brightgreen)
 ![License](https://img.shields.io/badge/license-Apache_2.0-orange)
 
 **MCP server for controlling grandMA2 lighting consoles via Telnet.**
@@ -56,11 +56,11 @@ uv run python -m src.server  # starts MCP server (stdio transport)
 graph TD
     A["🎭 MCP Server Layer<br/><code>src/server.py</code><br/>90 tools · safety gate"] --> B
     B["🧭 Navigation Layer<br/><code>src/navigation.py</code><br/>cd · list · scan · set_property"] --> C
-    C["🔧 Command Builders<br/><code>src/commands/</code><br/>157 pure functions → strings"] --> D
+    C["🔧 Command Builders<br/><code>src/commands/</code><br/>153 pure functions → strings"] --> D
     D["📡 Telnet Client<br/><code>src/telnet_client.py</code><br/>async · auth · injection prevention"]
 
     E["📖 Prompt Parser<br/><code>src/prompt_parser.py</code><br/>prompt detection · list parsing"] -.-> B
-    F["🛡️ Vocabulary & Safety<br/><code>src/vocab.py</code><br/>141 keywords · risk tiers"] -.-> A
+    F["🛡️ Vocabulary & Safety<br/><code>src/vocab.py</code><br/>156 keywords · risk tiers"] -.-> A
     G["🔍 RAG Pipeline<br/><code>rag/</code><br/>crawl → chunk → embed → query"] -.-> A
 
     style A fill:#1a1a2e,stroke:#e94560,color:#fff
@@ -363,7 +363,7 @@ python -m scripts.create_matricks_library --color-only
 |------|-------------|
 | `list_tool_categories` | Browse auto-discovered tool categories via K-Means clustering |
 | `recluster_tools` | Re-run the full ML pipeline (extract → embed → cluster → label) |
-| `get_similar_tools` | Find the most similar tools by Euclidean distance in feature space |
+| `get_similar_tools` | Find the most similar tools by cosine similarity in feature space |
 | `suggest_tool_for_task` | Suggest tools for a natural-language task description |
 
 </details>
@@ -417,7 +417,7 @@ Six domain skills provide grandMA2 knowledge to AI assistants, with or without a
 
 | Skill | Mode | Description |
 |-------|------|-------------|
-| **Command Reference** | Knowledge | 141 keywords, quote_name rules, 157 command builder patterns |
+| **Command Reference** | Knowledge | 156 keywords, quote_name rules, 153 command builder patterns |
 | **Show Architecture** | Knowledge | CD tree navigation, data pools, PresetType correlation |
 | **Networking** | Hybrid | MA-Net2, Art-Net, sACN, DMX, connectivity preservation |
 | **Macros** | Hybrid | Macro syntax, timing, conditions, variables — execute via MCP |
@@ -461,13 +461,13 @@ graph LR
 
 ### Keyword Classification
 
-The vocabulary classifies all **141 grandMA2 keywords** into categories:
+The vocabulary classifies all **156 grandMA2 keywords** into categories:
 
 | Category | Count | Description | Examples |
 |----------|-------|-------------|----------|
 | `OBJECT` | 56 | Console objects (nouns) | Channel, Fixture, Group, Preset, Executor |
-| `FUNCTION` | 79 | Actions (verbs) | Store, Delete, Go, At, List, Info |
-| `HELPING` | 7 | Syntax connectors | And, Thru, Fade, Delay, If |
+| `FUNCTION` | 89 | Actions (verbs) | Store, Delete, Go, At, List, Info |
+| `HELPING` | 5 | Syntax connectors | And, Thru, Fade, Delay, If |
 | `SPECIAL_CHAR` | 6 | Operator symbols | Plus `+`, Minus `-`, Dot `.`, Slash `/` |
 
 <details>
@@ -670,7 +670,7 @@ uv run python scripts/scan_tree.py --max-depth 20 --output scan_full.json --resu
 
 ## Command Builders
 
-The command builder layer (`src/commands/`) generates grandMA2 command strings as pure functions — no network I/O. **157 exported functions** covering navigation, selection, playback, values, store, delete, assign, label, and more.
+The command builder layer (`src/commands/`) generates grandMA2 command strings as pure functions — no network I/O. **153 exported functions** covering navigation, selection, playback, values, store, delete, assign, label, and more.
 
 > grandMA2 syntax: `[Function] [Object]` — keywords are **Function** (verbs), **Object** (nouns), or **Helping** (prepositions).
 
@@ -779,9 +779,9 @@ ma2-onPC-MCP/
 │   ├── telnet_client.py            # Async Telnet client (telnetlib3)
 │   ├── navigation.py               # Navigation API (cd + list + parsing)
 │   ├── prompt_parser.py            # Telnet prompt & list output parser
-│   ├── vocab.py                    # 141 keywords, categories & safety tiers
+│   ├── vocab.py                    # 156 keywords, categories & safety tiers
 │   ├── categorization/             # ML tool categorization (K-Means)
-│   └── commands/                   # 157 pure command builder functions
+│   └── commands/                   # 153 pure command builder functions
 │       ├── objects/                # Object keywords (9 modules)
 │       └── functions/              # Function keywords (15 modules)
 ├── rag/                            # RAG pipeline
@@ -804,7 +804,7 @@ ma2-onPC-MCP/
 │   ├── lua-scripting/              # Lua API & plugin patterns
 │   ├── INDEX.md                    # Cross-skill grep index
 │   └── SCHEMA.md                   # Skill metadata specification
-├── tests/                          # 1405 unit tests + 132 live tests
+├── tests/                          # 1437 unit tests + 132 live tests
 ├── vscode-mcp-provider/            # VS Code MCP extension
 └── doc/                            # Architecture docs & CD tree maps
 ```

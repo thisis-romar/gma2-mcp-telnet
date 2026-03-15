@@ -1,14 +1,14 @@
 ---
 title: GMA2 Keyword Vocabulary
-description: Classification of all 141 grandMA2 telnet keywords by category and risk tier
-version: 1.0.0
+description: Classification of all 156 grandMA2 telnet keywords by category and risk tier
+version: 1.1.0
 created: 2026-03-13T00:00:00Z
-last_updated: 2026-03-13T00:00:00Z
+last_updated: 2026-03-15T23:30:00Z
 ---
 
 # GMA2 Keyword Vocabulary
 
-grandMA2 v3.9.60.65 exposes 141 keywords via the Telnet interface. Each keyword is classified by **category** (what it is) and **risk tier** (what it can do).
+grandMA2 v3.9.60.65 exposes 156 keywords via the Telnet interface. Each keyword is classified by **category** (what it is) and **risk tier** (what it can do).
 
 ## Keyword Categories
 

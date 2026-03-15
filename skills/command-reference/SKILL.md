@@ -1,9 +1,9 @@
 ---
 title: grandMA2 Command Reference
-description: "grandMA2 command syntax reference. Covers 141 keywords, quote_name rules, wildcard workflow, and 157 command builder patterns."
+description: "grandMA2 command syntax reference. Covers 156 keywords, quote_name rules, wildcard workflow, and 153 command builder patterns."
 version: 2.0.0
 created: 2026-03-13T00:00:00Z
-last_updated: 2026-03-15T00:00:00Z
+last_updated: 2026-03-15T23:30:00Z
 name: gma2-command-reference
 license: Apache-2.0
 metadata:
@@ -39,4 +39,4 @@ metadata:
 
 # grandMA2 Command Reference
 
-Expert on grandMA2 command syntax: 141 keywords, 157 command builder patterns, name quoting rules, and wildcard workflow.
+Expert on grandMA2 command syntax: 156 keywords, 153 command builder patterns, name quoting rules, and wildcard workflow.

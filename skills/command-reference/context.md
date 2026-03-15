@@ -3,7 +3,7 @@ title: Command Reference Workspace Context
 description: Workspace context for the GMA2 command reference skill
 version: 2.0.0
 created: 2026-03-13T00:00:00Z
-last_updated: 2026-03-15T00:00:00Z
+last_updated: 2026-03-15T23:30:00Z
 ---
 
 # Command Reference Workspace Context
@@ -31,8 +31,8 @@ Commands follow `[Function] [Object] [Options]`. Names with special characters (
 
 ## Deep dives (read full files)
 
-- `references/syntax-guide.md` — complete 157-function command builder reference with examples
-- `references/keyword-vocabulary.md` — all 141 keywords classified by category and risk tier
+- `references/syntax-guide.md` — complete 153-function command builder reference with examples
+- `references/keyword-vocabulary.md` — all 156 keywords classified by category and risk tier
 
 ## MCP bridge availability
 
@@ -44,8 +44,8 @@ Knowledge only. Output formatted command examples, syntax explanations, and keyw
 
 ## Scope
 
-- 141 classified keywords (Function, Object, Helping)
-- 157 pure command builder patterns
+- 156 classified keywords (Function, Object, Helping)
+- 153 pure command builder patterns
 - Name quoting rules (quote_name with match_mode)
 - Wildcard workflow (discover → pattern → filter)
 - Three risk tiers: SAFE_READ, SAFE_WRITE, DESTRUCTIVE
