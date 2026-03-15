@@ -1,9 +1,9 @@
 ---
 title: GMA2 MCP
 description: MCP server for controlling grandMA2 lighting consoles via Telnet
-version: 3.2.0
+version: 3.3.0
 created: 2025-02-27T00:00:00Z
-last_updated: 2026-03-14T00:00:00Z
+last_updated: 2026-03-15T00:00:00Z
 ---
 
 <div align="center">
@@ -13,7 +13,7 @@ last_updated: 2026-03-14T00:00:00Z
 [![Tests](https://github.com/thisis-romar/ma2-onPC-MCP/actions/workflows/test.yml/badge.svg)](https://github.com/thisis-romar/ma2-onPC-MCP/actions/workflows/test.yml)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Tools](https://img.shields.io/badge/MCP_tools-90-brightgreen)
-![Tests](https://img.shields.io/badge/tests-1365-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1405-brightgreen)
 ![License](https://img.shields.io/badge/license-Apache_2.0-orange)
 
 **MCP server for controlling grandMA2 lighting consoles via Telnet.**
@@ -419,7 +419,7 @@ Six domain skills provide grandMA2 knowledge to AI assistants, with or without a
 |-------|------|-------------|
 | **Command Reference** | Knowledge | 141 keywords, quote_name rules, 157 command builder patterns |
 | **Show Architecture** | Knowledge | CD tree navigation, data pools, PresetType correlation |
-| **Networking** | Knowledge | MA-Net2, Art-Net, sACN, DMX, connectivity preservation |
+| **Networking** | Hybrid | MA-Net2, Art-Net, sACN, DMX, connectivity preservation |
 | **Macros** | Hybrid | Macro syntax, timing, conditions, variables — execute via MCP |
 | **Programming** | Hybrid | Cue/sequence store, MAtricks, appearance — execute via MCP |
 | **Lua Scripting** | Hybrid | GMA2 Lua API, plugin patterns — execute via MCP |
@@ -427,7 +427,7 @@ Six domain skills provide grandMA2 knowledge to AI assistants, with or without a
 **Knowledge** skills work without a console connection (copy-paste ready commands).
 **Hybrid** skills add live execution when the MCP server is connected.
 
-Each skill includes a router (`SKILL.md`), context file, and deep reference docs. Use `skills/INDEX.md` for cross-skill topic lookups via grep.
+Each skill includes metadata (`SKILL.md`), a context file (`context.md`), and deep reference docs. Use `skills/INDEX.md` for cross-skill topic lookups via grep.
 
 ## Safety System
 
@@ -794,14 +794,17 @@ ma2-onPC-MCP/
 │   ├── rag_ingest.py               # RAG ingestion CLI
 │   └── rag_query.py                # RAG query CLI
 ├── skills/                         # 6 AI skills (knowledge + hybrid)
+│   ├── _shared/                    # Shared fragments (MCP bridge notice)
+│   ├── _templates/                 # Skill scaffolding templates
 │   ├── command-reference/          # Keyword vocabulary & syntax
 │   ├── show-architecture/          # CD tree & data pools
 │   ├── networking/                 # MA-Net2, Art-Net, sACN
 │   ├── macros/                     # Macro syntax & patterns
 │   ├── programming/                # Cue, sequence, MAtricks
 │   ├── lua-scripting/              # Lua API & plugin patterns
-│   └── INDEX.md                    # Cross-skill grep index
-├── tests/                          # 1365 unit tests + 132 live tests
+│   ├── INDEX.md                    # Cross-skill grep index
+│   └── SCHEMA.md                   # Skill metadata specification
+├── tests/                          # 1405 unit tests + 132 live tests
 ├── vscode-mcp-provider/            # VS Code MCP extension
 └── doc/                            # Architecture docs & CD tree maps
 ```
